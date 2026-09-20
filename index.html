@@ -144,6 +144,73 @@
       line-height: 1.5;
     }
 
+    /* FEATURED HIGHLIGHTS */
+    #featured { padding: 5rem 0; border-bottom: 1px solid var(--rule); }
+    .featured-intro {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--amber);
+      margin-bottom: 3rem;
+    }
+    .featured-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 2px;
+    }
+    .featured-card {
+      background: var(--card-bg); padding: 2rem 2.25rem;
+      border-left: 4px solid transparent; text-decoration: none; display: block;
+      transition: border-left-color 0.2s, background 0.2s;
+    }
+    .featured-card:hover { border-left-color: var(--amber); background: #1c1a16; }
+    .featured-card.big {
+      grid-column: span 2;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; align-items: center;
+    }
+    .featured-card.big img { width: 100%; display: block; object-fit: cover; height: 260px; }
+    .featured-source {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.57rem;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber);
+      margin-bottom: 0.9rem; display: block;
+    }
+    .featured-quote {
+      font-family: 'Playfair Display', serif; font-size: 1.2rem; font-style: italic;
+      color: var(--paper); line-height: 1.55; margin-bottom: 1rem;
+    }
+    .featured-quote.large { font-size: 1.5rem; }
+    .featured-headline {
+      font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 700;
+      color: var(--paper); line-height: 1.3; margin-bottom: 0.75rem;
+    }
+    .featured-sub {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+      letter-spacing: 0.08em; color: var(--muted); line-height: 1.6;
+    }
+    .featured-card .feat-img {
+      width: 100%; display: block; object-fit: cover; height: 200px; margin-bottom: 1.5rem;
+    }
+    .featured-badge {
+      display: inline-block; margin-top: 1rem;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.55rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.3rem 0.75rem; border: 1px solid rgba(200,146,58,0.4); color: var(--amber);
+    }
+
+    /* VIDEOS */
+    #videos { padding: 4rem 0; border-bottom: 1px solid var(--rule); }
+    .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px; }
+    .video-card { background: var(--card-bg); text-decoration: none; display: block; }
+    .video-card:hover .video-thumb-wrap img { transform: scale(1.04); }
+    .video-thumb-wrap { aspect-ratio: 16/9; overflow: hidden; position: relative; }
+    .video-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; display: block; }
+    .video-play {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(12,11,9,0.35);
+    }
+    .video-play svg { width: 52px; height: 52px; }
+    .video-info { padding: 1.25rem 1.5rem; border-top: 2px solid var(--amber); }
+    .video-source { font-family: 'JetBrains Mono', monospace; font-size: 0.57rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--amber); margin-bottom: 0.4rem; display: block; }
+    .video-title { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 700; color: var(--paper); line-height: 1.3; margin-bottom: 0.3rem; }
+    .video-date { font-family: 'JetBrains Mono', monospace; font-size: 0.57rem; color: var(--muted); }
+
     /* HEADSHOT + BIO */
     #bio {
       padding: 5rem 0;
@@ -290,14 +357,20 @@
       .bio-layout { grid-template-columns: 1fr; gap: 2.5rem; }
       .bio-photo { position: static; max-width: 260px; }
     }
+    @media (max-width: 900px) {
+      .featured-card.big { grid-column: span 1; grid-template-columns: 1fr; }
+    }
     @media (max-width: 700px) {
       body { font-size: 16px; }
       nav { padding: 1rem 1.25rem; }
+      .nav-links { gap: 1rem; }
       .wrap { padding: 0 1.25rem; }
       .stats-grid { grid-template-columns: 1fr 1fr; }
       .stat-item { border-right: none; border-bottom: 1px solid var(--rule); }
       h1.hero-name { font-size: 3.2rem; }
       .photo-grid { grid-template-columns: 1fr; }
+      .video-grid { grid-template-columns: 1fr; }
+      .featured-grid { grid-template-columns: 1fr; }
       .dir-grid { grid-template-columns: 1fr; }
       footer { flex-direction: column; }
       .footer-note { text-align: left; }
@@ -309,8 +382,9 @@
   <nav>
     <span class="nav-name">Travis Stoliker</span>
     <div class="nav-links">
-      <a href="#bio">About</a>
+      <a href="#featured">Highlights</a>
       <a href="#photos">Photos</a>
+      <a href="#videos">Videos</a>
       <a href="#press">Press Archive</a>
       <a href="https://www.stoliker.co">School Board →</a>
     </div>
@@ -367,6 +441,87 @@
           <div class="stat-num">1,000</div>
           <div class="stat-label">Miles run in a single year · Year of the Opposite</div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURED HIGHLIGHTS -->
+  <section id="featured">
+    <div class="wrap">
+      <div class="section-header">
+        <span class="section-label">Featured Highlights</span>
+        <div class="section-rule"></div>
+      </div>
+
+      <div class="featured-grid">
+
+        <!-- David Perell — big card -->
+        <a class="featured-card big" href="articles/2020-david-perell-monday-musings-saddleback-bbq.html">
+          <img src="press-david-perell-saddleback.jpg" alt="Travis Stoliker with David Perell at Saddleback BBQ" style="width:100%;height:300px;object-fit:cover;display:block;">
+          <div>
+            <span class="featured-source">David Perell — Monday Musings Newsletter · September 2020</span>
+            <p class="featured-quote large">"To date, my favorite BBQ restaurant is still Saddleback BBQ in Lansing, Michigan. The food was so good that I came back four days later when I drove back through town."</p>
+            <p class="featured-sub">Influential writer David Perell — creator of Write of Passage, hundreds of thousands of newsletter subscribers — personally endorsed Saddleback BBQ and returned unprompted four days later.</p>
+            <span class="featured-badge">Read Full Record →</span>
+          </div>
+        </a>
+
+        <!-- Business Insider -->
+        <a class="featured-card" href="articles/2023-business-insider-43-pounds-year-of-the-opposite.html">
+          <img class="feat-img" src="screenshots/business-insider-2023.png" alt="Business Insider feature on Travis Stoliker" style="object-position:top;">
+          <span class="featured-source">Business Insider · October 20, 2023</span>
+          <p class="featured-headline">"A man was overweight, depressed, and unhealthy. Doing a 'year of the opposite' changed everything."</p>
+          <p class="featured-sub">National health feature by Rachel Hosie. Travis lost 43 pounds, reversed depression, eliminated medications — and ran 1,000 miles in a single year.</p>
+        </a>
+
+        <!-- Reddit Seinfeld viral -->
+        <a class="featured-card" href="articles/2023-reddit-seinfeld-viral-year-of-the-opposite.html">
+          <img class="feat-img" src="screenshots/reddit-seinfeld-1.png" alt="Travis Stoliker #1 on Reddit Seinfeld subreddit" style="object-position:top;">
+          <span class="featured-source">Reddit r/seinfeld · 425,000 members · October 2023</span>
+          <p class="featured-headline">#1 post on the Seinfeld subreddit — 1,141 upvotes</p>
+          <p class="featured-sub">The Business Insider article topped the Seinfeld community — one of Reddit's most active TV subreddits — as fans celebrated a real-life "Opposite George."</p>
+        </a>
+
+        <!-- Greater Lansing Business of the Year -->
+        <a class="featured-card" href="articles/2023-greater-lansing-business-of-the-year-saddleback-bbq.html">
+          <img class="feat-img" src="press-boty-2023-winner.jpg" alt="Greater Lansing Business of the Year 2023 — Saddleback BBQ">
+          <span class="featured-source">517 Magazine / Greater Lansing Entrepreneurial Awards · 2023</span>
+          <p class="featured-headline">Greater Lansing Business of the Year — Saddleback BBQ & Slice by Saddleback</p>
+          <p class="featured-sub">Presented by MSU Federal Credit Union and Foresight Group at the annual entrepreneurial awards gala.</p>
+        </a>
+
+        <!-- Pure Michigan Governor's Conference on Tourism -->
+        <a class="featured-card" href="articles/2023-pure-michigan-certificate-of-pure-achievement.html">
+          <img class="feat-img" src="press-pure-michigan-tourism-award.jpg" alt="Pure Michigan Certificate of Pure Achievement at Governor's Conference on Tourism">
+          <span class="featured-source">Pure Michigan / Michigan Economic Development Corporation · April 2023</span>
+          <p class="featured-headline">Pure Michigan Certificate of Pure Achievement — Governor's Conference on Tourism</p>
+          <p class="featured-sub">Presented at the state's premier annual tourism and hospitality gathering, recognizing Saddleback BBQ's contribution to Michigan's economy and visitor experience.</p>
+        </a>
+
+        <!-- Governor Whitmer letter -->
+        <a class="featured-card" href="articles/2021-governor-whitmer-letter-saddleback-bbq-covid.html">
+          <span class="featured-source">Governor Gretchen Whitmer — State of Michigan · 2021</span>
+          <p class="featured-quote">"I could not be prouder of the resilience, innovation, and compassion that your business has shown."</p>
+          <p class="featured-sub">Michigan's Governor personally wrote to Saddleback BBQ recognizing their COVID-19 community service — including paying off student lunch debt across nine school districts and supporting struggling restaurants.</p>
+          <span class="featured-badge">Read the Letter →</span>
+        </a>
+
+        <!-- $224M Liquid Web exit -->
+        <a class="featured-card" href="articles/2015-sale-of-liquidweb-224-million-2015.html">
+          <span class="featured-source">Liquid Web Private Equity Sale · 2015</span>
+          <p class="featured-quote large" style="color:var(--amber);">$224M</p>
+          <p class="featured-headline">Grew Liquid Web from ~10 employees to 480+ · $80M ARR · $224M private equity exit</p>
+          <p class="featured-sub">As VP of Marketing (2009–2015), Travis joined Liquid Web when it had roughly 10 employees. He helped grow it to three data centers, 480+ employees, and a landmark $224 million sale — with 12 consecutive Inc. 5000 designations along the way.</p>
+        </a>
+
+        <!-- Kiwanis Citizen of the Year -->
+        <a class="featured-card" href="articles/2023-kiwanis-club-citizen-of-the-year-2023.html">
+          <span class="featured-source">Kiwanis Club of Haslett · Citizen of the Year · 2023</span>
+          <p class="featured-headline">Kiwanis Citizen of the Year — an honor Travis "had no idea" he was being considered for</p>
+          <p class="featured-sub">The Haslett-Okemos Kiwanis Club recognized Travis for community leadership through Saddleback BBQ and his broader civic work — school lunch debt payments, Ele's Place board service, and public advocacy.</p>
+          <span class="featured-badge">Full Record →</span>
+        </a>
+
       </div>
     </div>
   </section>
@@ -444,6 +599,182 @@
             <div class="photo-context">MSU Men's Basketball · Draymond Green Hall of Fame Induction · September 2022</div>
           </div>
         </div>
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="press-draymond-2022.jpg" alt="Travis Stoliker with Draymond Green" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">Draymond Green</div>
+            <div class="photo-context">NBA Champion · MSU Basketball Hall of Fame Induction · September 2022</div>
+          </div>
+        </div>
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="press-david-perell-saddleback.jpg" alt="Travis Stoliker with David Perell at Saddleback BBQ" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">David Perell</div>
+            <div class="photo-context">Writer & Creator of Write of Passage · At Saddleback BBQ · 2020</div>
+          </div>
+        </div>
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="press-pure-michigan-tourism-award.jpg" alt="Travis Stoliker receiving Pure Michigan Certificate of Pure Achievement at Governor's Conference on Tourism" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">Pure Michigan — Governor's Conference on Tourism</div>
+            <div class="photo-context">Certificate of Pure Achievement · Michigan Economic Development Corp · April 2023</div>
+          </div>
+        </div>
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="press-boty-2023-stage.jpg" alt="Travis Stoliker accepting Greater Lansing Business of the Year award" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">Greater Lansing Business of the Year — Acceptance</div>
+            <div class="photo-context">Saddleback BBQ & Slice by Saddleback · 517 Magazine Entrepreneurial Awards · 2023</div>
+          </div>
+        </div>
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="press-slotkin-letter-2021.jpg" alt="Congresswoman Elissa Slotkin letter to Travis Stoliker" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">Congresswoman Elissa Slotkin</div>
+            <div class="photo-context">U.S. Representative · Personal letter of commendation · April 2021</div>
+          </div>
+        </div>
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="press-scribe-media-team-2024.jpg" alt="Travis Stoliker with Scribe Media team" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">Scribe Media Team</div>
+            <div class="photo-context">CEO, Scribe Media · 2024</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- VIDEOS -->
+  <section id="videos">
+    <div class="wrap">
+      <div class="section-header">
+        <span class="section-label">Videos & Interviews</span>
+        <div class="section-rule"></div>
+      </div>
+
+      <div class="video-grid">
+
+        <a class="video-card" href="articles/2022-msu-venture-summit-ted-style-talk-2022.html">
+          <div class="video-thumb-wrap">
+            <img src="press-msu-conquer-2017.jpg" alt="Travis Stoliker MSU Venture Summit TED-style talk 2022" loading="lazy">
+            <div class="video-play">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#c8923a" stroke-width="1.5" fill="rgba(12,11,9,0.7)"/>
+                <polygon points="21,18 37,26 21,34" fill="#c8923a"/>
+              </svg>
+            </div>
+          </div>
+          <div class="video-info">
+            <span class="video-source">MSU Venture Summit · September 2022</span>
+            <div class="video-title">TED-Style Talk — MSU Venture Summit</div>
+            <div class="video-date">Travis delivers a stage talk at Michigan State University's annual venture summit</div>
+          </div>
+        </a>
+
+        <a class="video-card" href="articles/2023-cold-oatmeal-podcast-episode-110-travis-stoliker.html">
+          <div class="video-thumb-wrap">
+            <img src="travis-headshot.jpg" alt="Cold Oatmeal Podcast Episode 110 — Travis Stoliker" loading="lazy">
+            <div class="video-play">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#c8923a" stroke-width="1.5" fill="rgba(12,11,9,0.7)"/>
+                <polygon points="21,18 37,26 21,34" fill="#c8923a"/>
+              </svg>
+            </div>
+          </div>
+          <div class="video-info">
+            <span class="video-source">Cold Oatmeal Podcast · Episode 110 · July 2023</span>
+            <div class="video-title">Cold Oatmeal Podcast — Episode 110</div>
+            <div class="video-date">Full interview covering Year of the Opposite, Saddleback BBQ, and entrepreneurship in Michigan</div>
+          </div>
+        </a>
+
+        <a class="video-card" href="articles/2020-wlns-business-owners-adapt-covid-19-stay-home-order.html">
+          <div class="video-thumb-wrap">
+            <img src="press-michigan-vca.jpg" alt="WLNS News 6 interview with Travis Stoliker during COVID-19" loading="lazy">
+            <div class="video-play">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#c8923a" stroke-width="1.5" fill="rgba(12,11,9,0.7)"/>
+                <polygon points="21,18 37,26 21,34" fill="#c8923a"/>
+              </svg>
+            </div>
+          </div>
+          <div class="video-info">
+            <span class="video-source">WLNS News 6 · April 2020</span>
+            <div class="video-title">Business Owners Adapt During COVID-19 Stay-Home Order</div>
+            <div class="video-date">TV interview on Saddleback BBQ's pivot and advocacy during pandemic shutdowns</div>
+          </div>
+        </a>
+
+        <a class="video-card" href="articles/2009-interviewed-by-wilx-on-facebook-hiring-2009.html">
+          <div class="video-thumb-wrap">
+            <img src="press-liquidweb-inc5000.jpg" alt="WILX News 10 — Travis Stoliker Facebook hiring interview 2009" loading="lazy">
+            <div class="video-play">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#c8923a" stroke-width="1.5" fill="rgba(12,11,9,0.7)"/>
+                <polygon points="21,18 37,26 21,34" fill="#c8923a"/>
+              </svg>
+            </div>
+          </div>
+          <div class="video-info">
+            <span class="video-source">WILX News 10 · March 2009</span>
+            <div class="video-title">Interviewed on Using Facebook for Hiring</div>
+            <div class="video-date">Early TV appearance as Liquid Web VP of Marketing — on social media recruiting strategy</div>
+          </div>
+        </a>
+
+        <a class="video-card" href="articles/2009-interviewed-by-wlns-cbs-on-michigan-hiring-2009.html">
+          <div class="video-thumb-wrap">
+            <img src="press-liquidweb-inc5000.jpg" alt="WLNS CBS 6 — Travis Stoliker Michigan hiring interview 2009" loading="lazy">
+            <div class="video-play">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#c8923a" stroke-width="1.5" fill="rgba(12,11,9,0.7)"/>
+                <polygon points="21,18 37,26 21,34" fill="#c8923a"/>
+              </svg>
+            </div>
+          </div>
+          <div class="video-info">
+            <span class="video-source">WLNS CBS 6 · March 2009</span>
+            <div class="video-title">Interviewed on Michigan Hiring During Economic Downturn</div>
+            <div class="video-date">CBS local news interview — Liquid Web growing and hiring when Michigan economy was contracting</div>
+          </div>
+        </a>
+
+        <a class="video-card" href="articles/2021-wilx-saddleback-paid-off-lunch-debt-school-district.html">
+          <div class="video-thumb-wrap">
+            <img src="press-haslett-board.jpg" alt="WILX — Saddleback BBQ pays off school lunch debt" loading="lazy">
+            <div class="video-play">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#c8923a" stroke-width="1.5" fill="rgba(12,11,9,0.7)"/>
+                <polygon points="21,18 37,26 21,34" fill="#c8923a"/>
+              </svg>
+            </div>
+          </div>
+          <div class="video-info">
+            <span class="video-source">WILX News 10 · February 2021</span>
+            <div class="video-title">Saddleback BBQ Pays Off Entire School District's Lunch Debt</div>
+            <div class="video-date">TV segment covering Saddleback's initiative to eliminate student lunch debt across nine Michigan school districts</div>
+          </div>
+        </a>
 
       </div>
     </div>
