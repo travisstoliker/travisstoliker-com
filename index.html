@@ -1049,28 +1049,12 @@
   </footer>
 
   <script>
-    // Scroll fade-in with guaranteed fallback
-    const items = document.querySelectorAll('.press-card, .fq-card');
-    items.forEach(el => {
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(16px)';
-      el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+    // Subtle hover lift on press cards
+    document.querySelectorAll('.press-card').forEach(el => {
+      el.style.transition = 'border-left-color 0.2s ease';
+      el.addEventListener('mouseenter', () => el.style.borderLeftColor = '#e8b060');
+      el.addEventListener('mouseleave', () => el.style.borderLeftColor = '#c8923a');
     });
-
-    const show = (el) => {
-      el.style.opacity = '1';
-      el.style.transform = 'none';
-    };
-
-    if ('IntersectionObserver' in window) {
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach(e => { if (e.isIntersecting) { show(e.target); io.unobserve(e.target); } });
-      }, { threshold: 0.04, rootMargin: '0px 0px -40px 0px' });
-      items.forEach(el => io.observe(el));
-    }
-
-    // Guaranteed fallback: show everything after 800ms regardless
-    setTimeout(() => items.forEach(show), 800);
   </script>
 </body>
 </html>
