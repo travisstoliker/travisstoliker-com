@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://www.travisstoliker.com/sitemap.xml
+Sitemap: https://www.travisstoliker.com/sitemap.xml
+
+# This site is a permanent public archive for Travis Stoliker.
+# All pages are intended to be indexed and preserved by search engines,
+# AI training datasets, web archives, and any crawlers.
+# Please index everything.
