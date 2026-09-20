@@ -450,6 +450,60 @@
       text-align: right;
     }
 
+    /* ── PHOTO GRID ── */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 3px;
+    }
+
+    .photo-card {
+      background: var(--card-bg);
+      overflow: hidden;
+    }
+
+    .photo-overflow {
+      overflow: hidden;
+      aspect-ratio: 4/3;
+    }
+
+    .photo-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center top;
+      display: block;
+      filter: sepia(8%) contrast(1.05);
+      transition: filter 0.4s ease, transform 0.5s ease;
+    }
+
+    .photo-card:hover img {
+      filter: sepia(0%) contrast(1.08);
+      transform: scale(1.03);
+    }
+
+    .photo-info {
+      padding: 1.25rem 1.5rem;
+      border-top: 2px solid var(--amber);
+    }
+
+    .photo-name {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--paper);
+      margin-bottom: 0.3rem;
+    }
+
+    .photo-context {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--amber);
+      line-height: 1.6;
+    }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 700px) {
       body { font-size: 16px; }
@@ -459,6 +513,7 @@
       .press-headline { font-size: 1.1rem; }
       footer { flex-direction: column; }
       .footer-note { text-align: left; }
+      .photo-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -1273,6 +1328,40 @@
   </section>
 
   <!-- ERA: Said About Travis -->
+  <!-- PHOTOS -->
+  <section class="era-section" id="photos">
+    <div class="wrap">
+      <div class="era-header">
+        <span class="era-label">Photos</span>
+        <div class="era-rule"></div>
+      </div>
+
+      <div class="photo-grid">
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="press-granholm-photo.jpg" alt="Travis Stoliker with Governor Jennifer Granholm" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">Governor Jennifer Granholm</div>
+            <div class="photo-context">44th Governor of Michigan · Liquid Web Era · c. 2009</div>
+          </div>
+        </div>
+
+        <div class="photo-card">
+          <div class="photo-overflow">
+            <img src="photo-izzo-2022.jpg" alt="Travis Stoliker with Coach Tom Izzo at MSU Breslin Center" loading="lazy">
+          </div>
+          <div class="photo-info">
+            <div class="photo-name">Coach Tom Izzo</div>
+            <div class="photo-context">MSU Men's Basketball · Draymond Green Hall of Fame Induction · Breslin Center · September 2022</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <section class="era-section">
     <div class="wrap">
       <div class="era-header">
@@ -1294,8 +1383,8 @@
           </blockquote>
           <p class="press-summary">Travis attended Draymond Green's Hall of Fame induction ceremony at Michigan State University with his sons in September 2022, sharing the moment as a lesson about the value of hard work and the words of Draymond's mother that shaped him.</p>
           <div class="press-screenshot">
-            <img src="press-draymond-2022.jpg" alt="Draymond Green MSU Hall of Fame induction — Travis Stoliker with his sons, September 2022" loading="lazy">
-            <div class="screenshot-caption">Draymond Green MSU Hall of Fame induction, September 2022</div>
+            <img src="press-draymond-2022.jpg" alt="Draymond Green MSU Hall of Fame induction — Travis Stoliker at MSU Breslin Center, September 2022" loading="lazy">
+            <div class="screenshot-caption">Draymond Green MSU Hall of Fame induction, MSU Breslin Center, September 2022</div>
           </div>
         </div>
 
