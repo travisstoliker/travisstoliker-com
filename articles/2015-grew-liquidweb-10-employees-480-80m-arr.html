@@ -152,18 +152,9 @@
       main { padding: 2.5rem 1.25rem 4rem; }
     }
   
-  .page-screenshot {
-    margin: 48px 0;
-    padding: 32px;
-    background: #f9f9f9;
-    border: 1px solid #eee;
-  }
-  .page-screenshot h2 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: #222;
-  }
+  .article-figure{margin:2.5rem 0;background:var(--card-bg);border:1px solid var(--rule);}
+  .article-figure img{width:100%;display:block;max-height:600px;object-fit:contain;object-position:top;}
+  .article-figure figcaption{font-family:'JetBrains Mono',monospace;font-size:0.58rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);padding:0.75rem 1rem;border-top:1px solid var(--rule);}
 </style>
 </head>
 <body>
@@ -193,13 +184,10 @@
       </div>
 
     
-  <section class="page-screenshot">
-    <h2>Source Page Screenshot</h2>
-    <p style="font-size:0.8rem;color:#888;margin-bottom:12px;">Archived screenshot of <a href="https://about.me/stoliker" target="_blank" rel="noopener">about.me/stoliker</a> captured September 19, 2026.</p>
-    <a href="../media/screenshot-aboutme-stoliker.jpg" target="_blank">
-      <img src="../media/screenshot-aboutme-stoliker.jpg" alt="Screenshot of source page" style="width:100%;max-width:960px;border:1px solid #ddd;box-shadow:0 2px 8px rgba(0,0,0,0.1);" loading="lazy">
-    </a>
-  </section>
+    <figure class="article-figure">
+      <img src="../screenshots/aboutme-stoliker.png" alt="Travis Stoliker — about.me/stoliker — Sales & Marketing Director at Liquid Web — entrepreneur, restaurateur, community leader — Haslett, Michigan" loading="lazy">
+      <figcaption>about.me/stoliker · Travis Stoliker profile · Sales & Marketing Director, Liquid Web · Lansing, Michigan</figcaption>
+    </figure>
   <div class="archive-footer">
       <p>Travis Stoliker — Public Record & Press Archive</p>
       <p>Archived: September 19, 2026 · travisstoliker.com/articles/2015-grew-liquidweb-10-employees-480-80m-arr.html</p>
