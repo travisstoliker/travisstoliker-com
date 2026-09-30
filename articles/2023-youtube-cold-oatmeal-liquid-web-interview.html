@@ -112,6 +112,10 @@
     .article-figure{margin:2.5rem 0;background:var(--card-bg);border:1px solid var(--rule);}
     .article-figure img{width:100%;display:block;max-height:600px;object-fit:contain;object-position:top;}
     .article-figure figcaption{font-family:'JetBrains Mono',monospace;font-size:0.58rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);padding:0.75rem 1rem;border-top:1px solid var(--rule);}
+    .video-wrap{margin:2.5rem 0;background:var(--card-bg);border:1px solid var(--rule);}
+    .video-ratio{position:relative;width:100%;padding-bottom:56.25%;}
+    .video-ratio iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0;}
+    .video-cap{font-family:'JetBrains Mono',monospace;font-size:0.58rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);padding:0.75rem 1rem;border-top:1px solid var(--rule);}
     .source-block {
       margin: 3rem 0; padding: 1.5rem; background: var(--card-bg);
       border-left: 3px solid var(--amber);
@@ -166,9 +170,19 @@
       <a href="https://www.youtube.com/watch?v=1i3QXebjyJk" target="_blank" rel="noopener" class="source-link">https://www.youtube.com/watch?v=1i3QXebjyJk</a>
     </div>
 
-    <figure class="article-figure">
-          <img src="../media/2023-youtube-cold-oatmeal-liquid-web-interview-0.jpg" alt="What is Liquid Web? How Did You Market LiquidWeb? — Travis Stoliker on Cold Oatmeal" loading="lazy">
-        </figure>
+    <div class="video-wrap">
+      <div class="video-ratio">
+        <iframe src="https://www.youtube-nocookie.com/embed/1i3QXebjyJk" title="What is Liquid Web? How Did You Market LiquidWeb? — Travis Stoliker on Cold Oatmeal" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      </div>
+      <div class="video-cap">Clip 1 — What is Liquid Web? How Did You Market LiquidWeb? · Cold Oatmeal · YouTube</div>
+    </div>
+
+    <div class="video-wrap">
+      <div class="video-ratio">
+        <iframe src="https://www.youtube-nocookie.com/embed/xVkd1IfEY6w" title="What Did You Do After Selling Liquid Web for $224 Million? — Travis Stoliker on Cold Oatmeal" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      </div>
+      <div class="video-cap">Clip 2 — What did you do after selling Liquid Web for $224 million? · Cold Oatmeal · YouTube</div>
+    </div>
 
         <div class="archive-footer">
       <p>Travis Stoliker — Public Record &amp; Press Archive</p>
