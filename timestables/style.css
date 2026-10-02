@@ -129,3 +129,11 @@ footer a { color: var(--muted); }
 
 .hero .phone { width: min(270px, 72vw); }
 .split .phone { width: min(280px, 76vw); }
+
+/* personal note */
+.note { max-width: 760px; margin: 0 auto; background: var(--panel); border-radius: 28px; padding: 36px 40px; border: 1px solid #ffffff14; }
+.note p { font-size: 1.12rem; color: #e8e4fd; margin: 0 0 16px; }
+.note .kicker { color: var(--gold); margin-bottom: 14px; }
+.note .sig { font-weight: 900; font-size: 1.2rem; margin: 22px 0 0; }
+.note .sig a { color: var(--gold); text-decoration: none; }
+@media (max-width: 820px) { .note { padding: 26px 22px; } }
