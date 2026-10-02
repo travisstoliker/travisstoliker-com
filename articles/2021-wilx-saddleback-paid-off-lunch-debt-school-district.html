@@ -48,6 +48,10 @@
     .source-link{color:var(--paper);font-size:0.85rem;word-break:break-all;font-family:monospace;}
     .archive-footer{margin-top:4rem;padding-top:2rem;border-top:1px solid var(--rule);font-size:0.6rem;letter-spacing:0.06em;color:var(--muted);line-height:1.8;font-family:monospace;}
     @media(max-width:700px){nav{padding:1rem 1.25rem;}main{padding:2.5rem 1.25rem 4rem;}}
+    .video-block{margin:2.5rem 0;}
+    .video-label{font-size:0.65rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--amber);font-family:monospace;display:block;margin-bottom:1rem;}
+    .video-frame{position:relative;width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--rule);}
+    .video-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:none;}
   </style>
 </head>
 <body>
@@ -73,6 +77,13 @@
 
     <div class="snippet-block">
       <p><strong>Preserved excerpt from Google search index:</strong> "Saddleback BBQ owners Travis Stoliker and Matt Gillett have made it through the pandemic ok. They're not swimming in cash, but they want to..."</p>
+    </div>
+
+    <div class="video-block">
+      <span class="video-label">Video Record — WILX News 10 Broadcast</span>
+      <div class="video-frame">
+        <iframe src="https://www.youtube.com/embed/oihHgsKdJ28" title="WILX News 10: Saddleback BBQ pays off Mason school lunch debt" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+      </div>
     </div>
 
     <div class="source-block">
