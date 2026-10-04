@@ -49,7 +49,8 @@ let user = null;
 
 function mergeResults(a, b) {
   const seen = new Set(), out = [];
-  for (const r of [...a, ...b].sort((x, y) => x.date - y.date)) {
+  // A real round is at most 15 questions; anything far bigger is bad data.
+  for (const r of [...a, ...b].filter(r => r.asked <= 30).sort((x, y) => x.date - y.date)) {
     const id = `${r.player}|${Math.round(r.date * 1000)}|${r.points}`;
     if (!seen.has(id)) { seen.add(id); out.push(r); }
   }
@@ -542,6 +543,9 @@ async function getAnswer(g, q, clock) {
   runTimer(g.listenSeconds);
   try {
     if (g.usingVoice) {
+      // iPhone reports the question "finished" a moment before its last word plays, and turning
+      // the microphone on cuts it off ("9 times…"): wait a beat there.
+      if (Voice.isIOS) await new Promise(r => setTimeout(r, 450));
       setMic('listening'); sfx.listen();
       return await Voice.listen({ seconds: g.listenSeconds, expect: q.answer, commands: true, max: OP[g.op].max,
         onHeard: t => { $('heard').textContent = t ? `“${t}”` : ' '; } });
