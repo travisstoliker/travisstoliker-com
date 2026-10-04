@@ -172,35 +172,106 @@ function speakSam(ctx, text) {
   } catch { return Promise.resolve(false); }
 }
 
-/** iPhone's built-in voice stays silent. Play a sound file on the voice context opened during the tap. */
+const ACCENTS = [
+  ['en', 'US'],
+  ['en-GB', 'British'],
+  ['en-AU', 'Australian'],
+  ['en-IN', 'Indian'],
+];
+let accentMem = 'en';
+
+function readStoredAccent() {
+  try {
+    const s = JSON.parse(localStorage.getItem('ttrt.settings') || '{}');
+    if (s && ACCENTS.some(([code]) => code === s.iosAccent)) return s.iosAccent;
+  } catch {}
+  return 'en';
+}
+
+function iosAccent() { return accentMem; }
+
+function writeAccent(code) {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem('ttrt.settings') || '{}') || {}; } catch { s = {}; }
+  if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
+  s.iosAccent = code;
+  try { localStorage.setItem('ttrt.settings', JSON.stringify(s)); } catch {}
+}
+
+if (isIOS) {
+  accentMem = readStoredAccent();
+  const origSet = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = (key, value) => {
+    if (key === 'ttrt.settings') {
+      try {
+        const next = JSON.parse(value);
+        if (next && typeof next === 'object' && !Array.isArray(next)) {
+          next.iosAccent = accentMem;
+          value = JSON.stringify(next);
+        }
+      } catch {}
+    }
+    return origSet(key, value);
+  };
+}
+
+/** iPhone's built-in voice stays silent. Ask our own /tts address, which the service worker fills with a normal voice. */
 async function speakClip(text) {
   const ctx = voiceAudio();
-  let audio = clipCache.get(text);
-  let bytes = null;
+  const tl = iosAccent();
+  const q = text.slice(0, 180);
+  const key = tl + '\n' + q;
+  let audio = clipCache.get(key);
   if (!audio) {
-    const remote = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=' + encodeURIComponent(text.slice(0, 180));
+    const url = new URL('tts?tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(q), location.href);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     try {
-      const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(remote), { signal: ctrl.signal });
-      if (res.ok) {
-        bytes = await res.arrayBuffer();
-        if (bytes.byteLength > 128) {
-          try {
-            audio = await ctx.decodeAudioData(bytes.slice(0));
-            clipCache.set(text, audio);
-          } catch { audio = null; }
-        }
-      }
-    } catch { /* proxy or network failed; on-device voice below */ }
-    finally { clearTimeout(timer); }
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) return false;
+      const bytes = await res.arrayBuffer();
+      if (bytes.byteLength <= 128) return false;
+      audio = await ctx.decodeAudioData(bytes.slice(0));
+      clipCache.set(key, audio);
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
   }
-  if (audio) return playBuffer(ctx, audio);
-  if (bytes && bytes.byteLength > 128) {
-    const ok = await playElementBytes(bytes, 'audio/mpeg');
-    if (ok) return true;
+  if (!audio) return false;
+  return playBuffer(ctx, audio);
+}
+
+function setupIosVoices() {
+  if (!isIOS || typeof document === 'undefined') return;
+  const sel = document.getElementById('voiceSel');
+  if (sel) sel.hidden = true;
+  let box = document.getElementById('iosVoices');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'iosVoices';
+    box.className = 'segs';
+    if (sel && sel.parentNode) sel.parentNode.insertBefore(box, sel);
   }
-  return speakSam(ctx, text);
+  box.hidden = false;
+  const paint = () => {
+    box.replaceChildren();
+    const cur = iosAccent();
+    for (const [code, label] of ACCENTS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      if (code === cur) b.className = 'on';
+      b.addEventListener('click', () => {
+        accentMem = code;
+        writeAccent(code);
+        paint();
+      });
+      box.append(b);
+    }
+  };
+  paint();
 }
 
 export function stopTalking() {
@@ -332,3 +403,5 @@ export function listen({ seconds, expect = null, commands = true, phrases = [], 
   });
 }
 export function stopListening(r) { active?.finish(r); }
+
+setupIosVoices();
