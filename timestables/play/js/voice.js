@@ -40,8 +40,13 @@ export function whenBlocked(fn) { onBlocked = fn; }
  * Browsers only allow sound that starts from a tap or click. Call this right inside a
  * click handler (before any waiting) so the voice can talk for the rest of the game.
  */
+/** Put speech on the loud speaker. Otherwise iPhone plays beeps out loud and the voice into silence. */
+export function loudSpeaker() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+}
 export function unlock() {
   if (!canSpeak) return;
+  loudSpeaker();
   // Resume only. A silent line here gets cancelled by the next one, and Chrome (and Safari on
   // iPhone) then drop that line too. The game instead says its first real line inside the tap.
   try { speechSynthesis.resume(); } catch {}
@@ -66,10 +71,12 @@ function speakOne(text, slower) {
     const u = new SpeechSynthesisUtterance(text);
     // On iPhone, an Enhanced voice that isn't downloaded says nothing. Use a compact
     // built-in voice unless one was picked in Settings.
-    const iosDefault = isIOS && !chosenId;
-    if (voice && (!iosDefault || compact(voice))) u.voice = voice;
-    u.lang = voice?.lang ?? 'en-US';
-    u.rate = Math.min(1.2, Math.max(0.75, rate)) * (slower ? 0.92 : 1);
+    // On iPhone, picking a voice (even a built-in one) often makes the line silent.
+    // Leave the voice unset unless someone chose one in Settings.
+    if (voice && !isIOS) u.voice = voice;
+    else if (voice && isIOS && chosenId) u.voice = voice;
+    u.lang = 'en-US';
+    u.rate = isIOS ? 1 : Math.min(1.2, Math.max(0.75, rate)) * (slower ? 0.92 : 1);
     u.volume = 1;
     let started = false, done = false;
     const finish = r => { if (!done) { done = true; clearTimeout(noStart); clearTimeout(safety); resolve(r); } };
@@ -82,7 +89,8 @@ function speakOne(text, slower) {
     u.onerror = e => finish(e.error === 'not-allowed' ? 'blocked' : e.error === 'interrupted' || e.error === 'canceled' ? 'stopped' : 'error');
     // Keep the utterance alive. Safari drops it if nothing else is holding it.
     pinned.push(u); if (pinned.length > 16) pinned.shift();
-    try { speechSynthesis.resume(); } catch {}
+    loudSpeaker();
+    try { if (!isIOS && speechSynthesis.paused) speechSynthesis.resume(); } catch {}
     speechSynthesis.speak(u);
   });
 }
@@ -96,7 +104,9 @@ export async function say(text, { slower = false } = {}) {
   // iPhone only speaks a line that is queued during the tap, and it reports "speaking"
   // even when nothing is queued. Waiting here leaves the tap, so the phone stays silent.
   if (isIOS && gesture) {
-    try { if (busy) speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
+    // Don't cancel. On iPhone a cancel in the same tap as the new line drops it.
+    loudSpeaker();
+    try { speechSynthesis.resume(); } catch {}
   } else if (busy) {
     speechSynthesis.cancel();
     await new Promise(r => setTimeout(r, 80));

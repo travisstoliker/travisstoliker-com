@@ -2,7 +2,7 @@
 import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js';
 import * as Coach from './coach.js';
 import { tipFor } from './tips.js';
-import * as Voice from './voice.js?v=4';
+import * as Voice from './voice.js?v=5';
 import * as Cloud from './cloud.js';
 
 const $ = id => document.getElementById(id);
@@ -348,6 +348,7 @@ $('settingsDlg').addEventListener('close', renderHome);
 let actx;
 /** Turn sound on. Must run inside a tap/click (browsers block sound that doesn't). */
 function unlockSound() {
+  Voice.loudSpeaker();
   Voice.unlock();
   try {
     actx ??= new (window.AudioContext || window.webkitAudioContext)();
@@ -355,6 +356,7 @@ function unlockSound() {
     const b = actx.createBuffer(1, 1, 22050), src = actx.createBufferSource();
     src.buffer = b; src.connect(actx.destination); src.start(0);
   } catch {}
+  Voice.loudSpeaker();
   $('soundBtn').hidden = true;
 }
 function tone(freqs, dur = 0.15, gap = 0.09, vol = 0.3, type = 'sine') {
