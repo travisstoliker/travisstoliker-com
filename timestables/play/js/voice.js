@@ -53,26 +53,39 @@ export function unlock() {
 }
 
 // Only stop if something is actually playing: an unneeded stop makes Safari drop the next line.
-let clip = null;
-function stopClip() { if (clip) { clip.pause(); clip.src = ''; clip = null; } }
+let voiceCtx = null, voiceNode = null;
+const clipCache = new Map();
+function voiceAudio() {
+  voiceCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+  if (voiceCtx.state !== 'running') voiceCtx.resume();
+  return voiceCtx;
+}
+function stopClip() {
+  try { voiceNode?.stop(); } catch {}
+  voiceNode = null;
+}
 
-/** iPhone's built-in voice stays silent, so play a real audio file through the loud speaker. */
-function speakClip(text) {
+/** iPhone's built-in voice stays silent. Play a sound file through the same system as the beeps. */
+async function speakClip(text) {
+  const ctx = voiceAudio();
+  let audio = clipCache.get(text);
+  if (!audio) {
+    const remote = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=' + encodeURIComponent(text.slice(0, 180));
+    const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(remote));
+    if (!res.ok) return;
+    const bytes = await res.arrayBuffer();
+    audio = await ctx.decodeAudioData(bytes.slice(0));
+    clipCache.set(text, audio);
+  }
   stopClip();
-  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=' + encodeURIComponent(text.slice(0, 180));
-  return new Promise(resolve => {
-    const a = new Audio(url);
-    clip = a;
-    // The speech file is refused when the request says it came from this site.
-    a.referrerPolicy = 'no-referrer';
-    a.preload = 'auto';
-    let done = false;
-    const finish = () => { if (done) return; done = true; if (clip === a) clip = null; resolve('ok'); };
-    const safety = setTimeout(finish, 4000 + text.length * 80);
-    a.onended = () => { clearTimeout(safety); finish(); };
-    a.onerror = () => { clearTimeout(safety); finish(); };
-    loudSpeaker();
-    a.play().catch(() => { clearTimeout(safety); finish(); });
+  const node = ctx.createBufferSource();
+  node.buffer = audio;
+  node.connect(ctx.destination);
+  voiceNode = node;
+  node.start();
+  await new Promise(resolve => {
+    const t = setTimeout(resolve, Math.ceil(audio.duration * 1000) + 200);
+    node.onended = () => { clearTimeout(t); resolve(); };
   });
 }
 
@@ -122,7 +135,7 @@ function speakOne(text, slower) {
 export async function say(text, { slower = false } = {}) {
   if (!text) return;
   if (isIOS) {
-    loudSpeaker();
+    voiceAudio();
     for (const part of chunks(text)) await speakClip(part);
     return;
   }
