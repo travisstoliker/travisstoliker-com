@@ -353,7 +353,9 @@ $('btnMicTest').onclick = async () => {
   else if (res.why === 'unavailable') r.textContent = '❌ The microphone is blocked. Click the 🔒 or 🎤 icon in the address bar and allow the microphone. (On a school Chromebook, the school may have turned it off: use “Type it”.)';
   else r.textContent = `Hmm, I didn’t catch a number${res.heard ? ` (heard “${res.heard}”)` : ''}. Try again a bit louder.`;
 };
-$('btnDone').onclick = () => $('settingsDlg').close();
+// (A cached older page may not have the Done button's id yet: never let that stop the game.)
+$('btnDone')?.addEventListener('click', () => $('settingsDlg').close());
+$('settingsDlg').querySelector('button[value="done"]')?.addEventListener('click', e => { e.preventDefault(); $('settingsDlg').close(); });
 $('settingsDlg').addEventListener('close', renderHome);
 
 // MARK: Sounds (made in code, no files)
