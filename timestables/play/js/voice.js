@@ -63,6 +63,8 @@ function speakClip(text) {
   return new Promise(resolve => {
     const a = new Audio(url);
     clip = a;
+    // The speech file is refused when the request says it came from this site.
+    a.referrerPolicy = 'no-referrer';
     a.preload = 'auto';
     let done = false;
     const finish = () => { if (done) return; done = true; if (clip === a) clip = null; resolve('ok'); };
