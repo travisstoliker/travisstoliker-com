@@ -290,6 +290,8 @@ function drawAnimals() {
     g.append(b);
   }
 }
+// Enter in the name box saves (otherwise the form's first button, Cancel, would win).
+$('dlgName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('playerDlg').close('save'); } });
 $('playerDlg').addEventListener('close', () => {
   const v = $('playerDlg').returnValue, name = $('dlgName').value.trim();
   if (v === 'save' && name) {
