@@ -396,14 +396,17 @@ async function start() {
     players: playingNow().map(c => ({ c, points: 0, right: 0, asked: 0, streak: 0, best: 0, misses: [], fastest: null, retry: [], retried: new Set(), recent: [], milestones: [], roundSecs: [],
       masteredAtStart: Coach.masteredGroups(op, memories[op][c.id] ?? {}) })) };
   const g = G;
-  try { await navigator.wakeLock?.request('screen'); } catch {}
   show('game');
   $('keypad').hidden = g.usingVoice; $('entry').hidden = g.usingVoice; $('heard').hidden = !g.usingVoice;
   renderScores();
   const names = g.players.map(p => p.c.name);
   const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0];
   setMic('speaking');
-  await Voice.say(`Let's go! ${list}, you ${names.length > 1 ? 'each get' : 'get'} ${settings.perPlayer} ${op === 'mul' ? '' : OP[op].noun + ' '}questions.`);
+  // Start talking right now, inside the tap on Start: iPhones only allow speech that begins
+  // during a tap (afterwards it can keep talking for the whole game).
+  const intro = Voice.say(`Let's go! ${list}, you ${names.length > 1 ? 'each get' : 'get'} ${settings.perPlayer} ${op === 'mul' ? '' : OP[op].noun + ' '}questions.`);
+  try { await navigator.wakeLock?.request('screen'); } catch {}
+  await intro;
   while (!g.quit) {
     if (g.players.every(p => p.asked >= settings.perPlayer)) break;
     const i = g.turn % g.players.length;

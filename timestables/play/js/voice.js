@@ -6,6 +6,8 @@ import { parse, interpret, soundsUnfinished, command, tokenize } from './numpars
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 export const canListen = !!SR;
 export const canSpeak = 'speechSynthesis' in window;
+/** iPhone and iPad (every browser there, Chrome included, uses Safari's engine). */
+export const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 let voice = null, rate = 1, chosenId = null, avoidNetwork = false;
 export function voices() {
@@ -34,16 +36,19 @@ export function whenBlocked(fn) { onBlocked = fn; }
  * click handler (before any waiting) so the voice can talk for the rest of the game.
  */
 export function unlock() {
-  if (!canSpeak) return;
+  // On iPhone a silent line doesn't count as "started by a tap", and it gets in the way of
+  // the real first line. There, the app just says its first real line right inside the tap.
+  if (!canSpeak || isIOS) return;
   try {
-    speechSynthesis.resume();
+    if (speechSynthesis.paused) speechSynthesis.resume();
     const u = new SpeechSynthesisUtterance(' ');
     u.volume = 0;
     speechSynthesis.speak(u);
   } catch {}
 }
 
-export function stopTalking() { if (canSpeak) speechSynthesis.cancel(); }
+// Only stop if something is actually playing: an unneeded stop makes Safari drop the next line.
+export function stopTalking() { if (canSpeak && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); }
 
 /** Split long speech into sentences: Chrome's online voices stop partway through long ones. */
 function chunks(text) {
@@ -58,19 +63,22 @@ function chunks(text) {
 function speakOne(text, slower) {
   return new Promise(resolve => {
     const u = new SpeechSynthesisUtterance(text);
-    if (voice) u.voice = voice;
-    u.lang = voice?.lang ?? 'en-US';
+    // On iPhone, use the phone's own voice unless one was picked in Settings: setting a voice
+    // the phone hasn't downloaded makes it say nothing at all.
+    if (voice && (!isIOS || chosenId)) u.voice = voice;
+    u.lang = (isIOS && !chosenId) ? 'en-US' : voice?.lang ?? 'en-US';
     u.rate = Math.min(1.2, Math.max(0.75, rate)) * (slower ? 0.92 : 1);
     u.volume = 1;
     let started = false, done = false;
     const finish = r => { if (!done) { done = true; clearTimeout(noStart); clearTimeout(safety); resolve(r); } };
     // A voice that never starts (offline online-voice, glitch): use a built-in voice from now on.
-    const noStart = setTimeout(() => { if (!started) finish('nostart'); }, 2500);
+    // (iPhone doesn't always report "started", so there we just wait for "finished".)
+    const noStart = isIOS ? null : setTimeout(() => { if (!started) finish('nostart'); }, 2500);
     const safety = setTimeout(() => finish('timeout'), 2500 + text.length * 120);
     u.onstart = () => { started = true; };
     u.onend = () => finish('ok');
     u.onerror = e => finish(e.error === 'not-allowed' ? 'blocked' : e.error === 'interrupted' || e.error === 'canceled' ? 'stopped' : 'error');
-    speechSynthesis.resume();
+    if (speechSynthesis.paused) speechSynthesis.resume();
     speechSynthesis.speak(u);
   });
 }
@@ -78,7 +86,8 @@ function speakOne(text, slower) {
 /** Say something and wait until it's finished (with safety timeouts so play never hangs). */
 export async function say(text, { slower = false } = {}) {
   if (!canSpeak || !text) return;
-  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+  // Stopping and then speaking right away makes Safari (iPhone) drop the new line: give it a moment.
+  if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); await new Promise(r => setTimeout(r, 150)); }
   for (const part of chunks(text)) {
     let r = await speakOne(part, slower);
     if (r === 'blocked') { onBlocked?.(); return; }
