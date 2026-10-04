@@ -17,12 +17,14 @@ export function voices() {
 function bestVoice(id) {
   const vs = voices();
   if (id) { const v = vs.find(v => v.voiceURI === id); if (v && !(avoidNetwork && !v.localService)) return v; }
-  const usable = avoidNetwork ? vs.filter(v => v.localService) : vs;
-  // Clearest first: natural voices, then Google's, then a built-in US English one.
-  return usable.find(v => /natural/i.test(v.name) && /en-US/i.test(v.lang))
-    ?? usable.find(v => /google us english/i.test(v.name))
-    ?? usable.find(v => /^(samantha|alex|ava|zoe|allison)/i.test(v.name))
-    ?? usable.find(v => /en-US/i.test(v.lang)) ?? usable[0] ?? null;
+  const local = vs.filter(v => v.localService);
+  // Built-in voices first. Chrome's Natural and Google voices can start and still be silent.
+  return local.find(v => /^(samantha|alex|ava|zoe|allison|daniel)/i.test(v.name))
+    ?? local.find(v => /en-US/i.test(v.lang))
+    ?? local[0]
+    ?? vs.find(v => /en-US/i.test(v.lang))
+    ?? vs[0]
+    ?? null;
 }
 export function setVoice(id, speed = 1) { chosenId = id; voice = bestVoice(id); rate = speed; }
 if (canSpeak) speechSynthesis.addEventListener?.('voiceschanged', () => { voice = bestVoice(chosenId); });
@@ -36,15 +38,10 @@ export function whenBlocked(fn) { onBlocked = fn; }
  * click handler (before any waiting) so the voice can talk for the rest of the game.
  */
 export function unlock() {
-  // On iPhone a silent line doesn't count as "started by a tap", and it gets in the way of
-  // the real first line. There, the app just says its first real line right inside the tap.
-  if (!canSpeak || isIOS) return;
-  try {
-    if (speechSynthesis.paused) speechSynthesis.resume();
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0;
-    speechSynthesis.speak(u);
-  } catch {}
+  if (!canSpeak) return;
+  // Resume only. A silent line here gets cancelled by the next one, and Chrome (and Safari on
+  // iPhone) then drop that line too. The game instead says its first real line inside the tap.
+  try { if (speechSynthesis.paused) speechSynthesis.resume(); } catch {}
 }
 
 // Only stop if something is actually playing: an unneeded stop makes Safari drop the next line.
@@ -86,14 +83,19 @@ function speakOne(text, slower) {
 /** Say something and wait until it's finished (with safety timeouts so play never hangs). */
 export async function say(text, { slower = false } = {}) {
   if (!canSpeak || !text) return;
-  // Stopping and then speaking right away makes Safari (iPhone) drop the new line: give it a moment.
-  if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); await new Promise(r => setTimeout(r, 150)); }
+  if (!voice) voice = bestVoice(chosenId);
+  // cancel() then speak() right away makes Chrome and Safari (iPhone) drop the new line: wait a moment.
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    speechSynthesis.cancel();
+    await new Promise(r => setTimeout(r, 150));
+  }
   for (const part of chunks(text)) {
     let r = await speakOne(part, slower);
     if (r === 'blocked') { onBlocked?.(); return; }
     if ((r === 'nostart' || r === 'error') && voice && !voice.localService) {
       avoidNetwork = true; voice = bestVoice(chosenId);
       speechSynthesis.cancel();
+      await new Promise(wait => setTimeout(wait, 50));
       r = await speakOne(part, slower);
     }
     if (r === 'stopped') return;
