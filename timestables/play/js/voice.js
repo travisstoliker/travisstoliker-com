@@ -2,6 +2,7 @@
 // Speaking: speechSynthesis. Listening: SpeechRecognition (Chrome sends the audio to Google
 // to turn it into text). If either is missing or blocked, the game switches to typing.
 import { parse, interpret, soundsUnfinished, command, tokenize } from './numparse.js';
+import SamJs from './sam.js?v=9';
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 export const canListen = !!SR;
@@ -36,10 +37,6 @@ if (canSpeak) speechSynthesis.addEventListener?.('voiceschanged', () => { voice 
 let onBlocked = null;
 export function whenBlocked(fn) { onBlocked = fn; }
 
-/**
- * Browsers only allow sound that starts from a tap or click. Call this right inside a
- * click handler (before any waiting) so the voice can talk for the rest of the game.
- */
 /** Put speech on the loud speaker. Otherwise iPhone plays beeps out loud and the voice into silence. */
 export function loudSpeaker() {
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
@@ -52,44 +49,164 @@ export function unlock() {
   try { speechSynthesis.resume(); } catch {}
 }
 
-// Only stop if something is actually playing: an unneeded stop makes Safari drop the next line.
-let voiceCtx = null, voiceNode = null;
+// iPhone will not start new audio after the tap's call stack ends unless a node
+// was already started during the tap. The keeper stays on for the whole session.
+let voiceCtx = null, voiceNode = null, keeper = null, htmlAudio = null, htmlStarted = false;
 const clipCache = new Map();
+const SILENT_WAV = 'data:audio/wav;base64,UklGRkQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+let sam;
+
 function voiceAudio() {
   voiceCtx ??= new (window.AudioContext || window.webkitAudioContext)();
   if (voiceCtx.state !== 'running') voiceCtx.resume();
   return voiceCtx;
 }
+
+/** Synchronous. Call before any await, inside the tap. */
+function primeIosAudio() {
+  loudSpeaker();
+  const ctx = voiceAudio();
+  if (!keeper) {
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.0001;
+      osc.frequency.value = 220;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      keeper = osc;
+    } catch {
+      const rate = ctx.sampleRate || 22050;
+      const buf = ctx.createBuffer(1, rate, rate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (i & 1) ? 0.0001 : -0.0001;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.0001;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+      keeper = src;
+    }
+  }
+  if (!htmlAudio) {
+    htmlAudio = document.createElement('audio');
+    htmlAudio.setAttribute('playsinline', '');
+    htmlAudio.setAttribute('webkit-playsinline', '');
+    htmlAudio.playsInline = true;
+    htmlAudio.preload = 'auto';
+    htmlAudio.src = SILENT_WAV;
+  }
+  if (!htmlStarted && (!htmlAudio.src || htmlAudio.src.startsWith('data:'))) {
+    try {
+      const played = htmlAudio.play();
+      htmlStarted = true;
+      if (played && played.catch) played.catch(() => { htmlStarted = false; });
+    } catch { htmlStarted = false; }
+  }
+}
+
 function stopClip() {
   try { voiceNode?.stop(); } catch {}
   voiceNode = null;
+  if (htmlAudio && htmlAudio.src.startsWith('blob:')) {
+    try { htmlAudio.pause(); } catch {}
+  }
 }
 
-/** iPhone's built-in voice stays silent. Play a sound file through the same system as the beeps. */
-async function speakClip(text) {
-  const ctx = voiceAudio();
-  let audio = clipCache.get(text);
-  if (!audio) {
-    const remote = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=' + encodeURIComponent(text.slice(0, 180));
-    const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(remote));
-    if (!res.ok) return;
-    const bytes = await res.arrayBuffer();
-    audio = await ctx.decodeAudioData(bytes.slice(0));
-    clipCache.set(text, audio);
-  }
+function playBuffer(ctx, audio) {
   stopClip();
   const node = ctx.createBufferSource();
   node.buffer = audio;
   node.connect(ctx.destination);
   voiceNode = node;
-  node.start();
-  await new Promise(resolve => {
-    const t = setTimeout(resolve, Math.ceil(audio.duration * 1000) + 200);
-    node.onended = () => { clearTimeout(t); resolve(); };
+  try { node.start(); } catch { return Promise.resolve(false); }
+  return new Promise(resolve => {
+    let done = false;
+    const finish = ok => { if (!done) { done = true; clearTimeout(t); resolve(ok); } };
+    const t = setTimeout(() => finish(true), Math.ceil((audio.duration || 1) * 1000) + 250);
+    node.onended = () => finish(true);
   });
 }
 
-export function stopTalking() { stopClip(); if (canSpeak && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); }
+function playElementBytes(bytes, type) {
+  if (!htmlAudio) return Promise.resolve(false);
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const el = htmlAudio;
+  return new Promise(resolve => {
+    let done = false;
+    const finish = ok => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      el.onended = null;
+      el.onerror = null;
+      URL.revokeObjectURL(url);
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(true), 20000);
+    el.onended = () => finish(true);
+    el.onerror = () => finish(false);
+    el.src = url;
+    try {
+      const played = el.play();
+      if (played && played.catch) played.catch(() => finish(false));
+    } catch { finish(false); }
+  });
+}
+
+function speakSam(ctx, text) {
+  try {
+    sam ??= new SamJs();
+    const clean = text.replace(/[^A-Za-z0-9 .,!?'-]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!clean) return Promise.resolve(false);
+    const pcm = sam.buf8(clean);
+    if (!pcm || !pcm.length) return Promise.resolve(false);
+    const audio = ctx.createBuffer(1, pcm.length, 22050);
+    const ch = audio.getChannelData(0);
+    for (let i = 0; i < pcm.length; i++) ch[i] = (pcm[i] - 128) / 256;
+    return playBuffer(ctx, audio);
+  } catch { return Promise.resolve(false); }
+}
+
+/** iPhone's built-in voice stays silent. Play a sound file on the voice context opened during the tap. */
+async function speakClip(text) {
+  const ctx = voiceAudio();
+  let audio = clipCache.get(text);
+  let bytes = null;
+  if (!audio) {
+    const remote = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=' + encodeURIComponent(text.slice(0, 180));
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(remote), { signal: ctrl.signal });
+      if (res.ok) {
+        bytes = await res.arrayBuffer();
+        if (bytes.byteLength > 128) {
+          try {
+            audio = await ctx.decodeAudioData(bytes.slice(0));
+            clipCache.set(text, audio);
+          } catch { audio = null; }
+        }
+      }
+    } catch { /* proxy or network failed; on-device voice below */ }
+    finally { clearTimeout(timer); }
+  }
+  if (audio) return playBuffer(ctx, audio);
+  if (bytes && bytes.byteLength > 128) {
+    const ok = await playElementBytes(bytes, 'audio/mpeg');
+    if (ok) return true;
+  }
+  return speakSam(ctx, text);
+}
+
+export function stopTalking() {
+  stopClip();
+  if (canSpeak && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
+}
 
 /** Split long speech into sentences: Chrome's online voices stop partway through long ones. */
 function chunks(text) {
@@ -105,10 +222,6 @@ const pinned = [];
 function speakOne(text, slower) {
   return new Promise(resolve => {
     const u = new SpeechSynthesisUtterance(text);
-    // On iPhone, an Enhanced voice that isn't downloaded says nothing. Use a compact
-    // built-in voice unless one was picked in Settings.
-    // On iPhone, picking a voice (even a built-in one) often makes the line silent.
-    // Leave the voice unset unless someone chose one in Settings.
     if (voice && !isIOS) u.voice = voice;
     else if (voice && isIOS && chosenId) u.voice = voice;
     u.lang = 'en-US';
@@ -116,14 +229,11 @@ function speakOne(text, slower) {
     u.volume = 1;
     let started = false, done = false;
     const finish = r => { if (!done) { done = true; clearTimeout(noStart); clearTimeout(safety); resolve(r); } };
-    // A voice that never starts (offline online-voice, glitch): use a built-in voice from now on.
-    // (iPhone doesn't always report "started", so there we just wait for "finished".)
     const noStart = isIOS ? null : setTimeout(() => { if (!started) finish('nostart'); }, 2500);
     const safety = setTimeout(() => finish('timeout'), 2500 + text.length * 120);
     u.onstart = () => { started = true; };
     u.onend = () => finish('ok');
     u.onerror = e => finish(e.error === 'not-allowed' ? 'blocked' : e.error === 'interrupted' || e.error === 'canceled' ? 'stopped' : 'error');
-    // Keep the utterance alive. Safari drops it if nothing else is holding it.
     pinned.push(u); if (pinned.length > 16) pinned.shift();
     loudSpeaker();
     try { if (!isIOS && speechSynthesis.paused) speechSynthesis.resume(); } catch {}
@@ -131,22 +241,22 @@ function speakOne(text, slower) {
   });
 }
 
-/** Say something and wait until it's finished (with safety timeouts so play never hangs). */
+/** Say something and wait until it's finished. Resolves "Done." or "No sound. Try again." */
 export async function say(text, { slower = false } = {}) {
-  if (!text) return;
+  if (!text) return 'Done.';
   if (isIOS) {
-    voiceAudio();
-    for (const part of chunks(text)) await speakClip(part);
-    return;
+    primeIosAudio();
+    let any = false;
+    for (const part of chunks(text)) {
+      if (await speakClip(part)) any = true;
+    }
+    return any ? 'Done.' : 'No sound. Try again.';
   }
-  if (!canSpeak) return;
+  if (!canSpeak) return 'No sound. Try again.';
   if (!voice) voice = bestVoice(chosenId);
   const gesture = !!navigator.userActivation?.isActive;
   const busy = !!(speechSynthesis.speaking || speechSynthesis.pending);
-  // iPhone only speaks a line that is queued during the tap, and it reports "speaking"
-  // even when nothing is queued. Waiting here leaves the tap, so the phone stays silent.
   if (isIOS && gesture) {
-    // Don't cancel. On iPhone a cancel in the same tap as the new line drops it.
     loudSpeaker();
     try { speechSynthesis.resume(); } catch {}
   } else if (busy) {
@@ -155,15 +265,17 @@ export async function say(text, { slower = false } = {}) {
   }
   for (const part of chunks(text)) {
     let r = await speakOne(part, slower);
-    if (r === 'blocked') { onBlocked?.(); return; }
+    if (r === 'blocked') { onBlocked?.(); return 'No sound. Try again.'; }
     if ((r === 'nostart' || r === 'error') && voice && !voice.localService) {
       avoidNetwork = true; voice = bestVoice(chosenId);
       speechSynthesis.cancel();
       await new Promise(wait => setTimeout(wait, 50));
       r = await speakOne(part, slower);
     }
-    if (r === 'stopped') return;
+    if (r === 'stopped') return 'Done.';
+    if (r !== 'ok' && r !== 'timeout') return 'No sound. Try again.';
   }
+  return 'Done.';
 }
 
 let active = null;

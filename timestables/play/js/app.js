@@ -2,7 +2,7 @@
 import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js';
 import * as Coach from './coach.js';
 import { tipFor } from './tips.js';
-import * as Voice from './voice.js?v=8';
+import * as Voice from './voice.js?v=9';
 import * as Cloud from './cloud.js';
 
 const $ = id => document.getElementById(id);
@@ -194,7 +194,7 @@ function toggle(p) {
   saveSettings(); renderHome();
 }
 
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&' + 'amp;', '<': '&' + 'lt;', '>': '&' + 'gt;', '"': '&' + 'quot;', "'": '&' + '#39;' }[c]));
 
 // MARK: Leaderboard
 
@@ -326,7 +326,15 @@ function openSettings() {
 }
 $('voiceSel').onchange = e => { settings.voiceID = e.target.value || null; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say('What is 7 times 8?'); unlockSound(); };
 $('speed').oninput = e => { settings.voiceSpeed = +e.target.value; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); };
-$('btnHear').onclick = () => { Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say(`Hi ${playingNow()[0]?.name ?? 'friend'}! What is 7 times 8?`); unlockSound(); };
+$('btnHear').onclick = () => {
+  unlockSound();
+  const st = $('hearStatus');
+  if (st) st.textContent = 'Playing…';
+  Voice.setVoice(settings.voiceID, settings.voiceSpeed);
+  Promise.resolve(Voice.say(`Hi ${playingNow()[0]?.name ?? 'friend'}! What is 7 times 8?`)).then(msg => {
+    if (st) st.textContent = msg || 'Done.';
+  }).catch(() => { if (st) st.textContent = 'No sound. Try again.'; });
+};
 $('gradeSel').onchange = e => { settings.grade = e.target.value; saveSettings(); pushAccount().catch(() => {}); };
 $('btnMicTest').onclick = async () => {
   const r = $('micReport');
@@ -452,7 +460,7 @@ async function askOne(g, i) {
   renderScores();
   $('who').textContent = `${p.c.avatar} ${p.c.name}'s turn`;
   $('problem').textContent = q.text; $('problem').className = 'problem';
-  $('badge').innerHTML = '&nbsp;'; $('tip').hidden = true; $('heard').innerHTML = '&nbsp;'; $('entry').textContent = '?';
+  $('badge').innerHTML = '&' + 'nbsp;'; $('tip').hidden = true; $('heard').innerHTML = '&' + 'nbsp;'; $('entry').textContent = '?';
   feedback(null);
   const it = findItem(g.op, q.key);
   const chance = it ? Coach.pCorrect(skill(pid, g.op), memories[g.op][pid]?.[q.key], it) : 0.5;
