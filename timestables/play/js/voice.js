@@ -7,39 +7,88 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 export const canListen = !!SR;
 export const canSpeak = 'speechSynthesis' in window;
 
-let voice = null, rate = 1;
+let voice = null, rate = 1, chosenId = null, avoidNetwork = false;
 export function voices() {
   if (!canSpeak) return [];
   return speechSynthesis.getVoices().filter(v => v.lang?.toLowerCase().startsWith('en'));
 }
 function bestVoice(id) {
   const vs = voices();
-  if (id) { const v = vs.find(v => v.voiceURI === id); if (v) return v; }
-  // Clearest first: natural/online voices, then Google's, then any US English.
-  return vs.find(v => /natural|online/i.test(v.name) && /en-US/i.test(v.lang))
-    ?? vs.find(v => /google us english/i.test(v.name))
-    ?? vs.find(v => /en-US/i.test(v.lang)) ?? vs[0] ?? null;
+  if (id) { const v = vs.find(v => v.voiceURI === id); if (v && !(avoidNetwork && !v.localService)) return v; }
+  const usable = avoidNetwork ? vs.filter(v => v.localService) : vs;
+  // Clearest first: natural voices, then Google's, then a built-in US English one.
+  return usable.find(v => /natural/i.test(v.name) && /en-US/i.test(v.lang))
+    ?? usable.find(v => /google us english/i.test(v.name))
+    ?? usable.find(v => /^(samantha|alex|ava|zoe|allison)/i.test(v.name))
+    ?? usable.find(v => /en-US/i.test(v.lang)) ?? usable[0] ?? null;
 }
-export function setVoice(id, speed = 1) { voice = bestVoice(id); rate = speed; }
-if (canSpeak) speechSynthesis.onvoiceschanged = () => { if (!voice) voice = bestVoice(); };
+export function setVoice(id, speed = 1) { chosenId = id; voice = bestVoice(id); rate = speed; }
+if (canSpeak) speechSynthesis.addEventListener?.('voiceschanged', () => { voice = bestVoice(chosenId); });
+
+/** Called when the browser blocks sound until someone taps (the app shows a "tap for sound" button). */
+let onBlocked = null;
+export function whenBlocked(fn) { onBlocked = fn; }
+
+/**
+ * Browsers only allow sound that starts from a tap or click. Call this right inside a
+ * click handler (before any waiting) so the voice can talk for the rest of the game.
+ */
+export function unlock() {
+  if (!canSpeak) return;
+  try {
+    speechSynthesis.resume();
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  } catch {}
+}
 
 export function stopTalking() { if (canSpeak) speechSynthesis.cancel(); }
 
-/** Say something and wait until it's finished (with a safety timeout so play never hangs). */
-export function say(text, { slower = false } = {}) {
+/** Split long speech into sentences: Chrome's online voices stop partway through long ones. */
+function chunks(text) {
+  const parts = text.match(/[^.!?]+[.!?]*\s*/g) ?? [text];
+  const out = [];
+  for (const p of parts) {
+    if (out.length && (out.at(-1) + p).length < 160) out[out.length - 1] += p; else out.push(p);
+  }
+  return out.map(x => x.trim()).filter(Boolean);
+}
+
+function speakOne(text, slower) {
   return new Promise(resolve => {
-    if (!canSpeak || !text) return resolve();
-    speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     if (voice) u.voice = voice;
     u.lang = voice?.lang ?? 'en-US';
     u.rate = Math.min(1.2, Math.max(0.75, rate)) * (slower ? 0.92 : 1);
-    let done = false;
-    const finish = () => { if (!done) { done = true; clearTimeout(timer); resolve(); } };
-    const timer = setTimeout(finish, 1500 + text.length * 90);
-    u.onend = finish; u.onerror = finish;
+    u.volume = 1;
+    let started = false, done = false;
+    const finish = r => { if (!done) { done = true; clearTimeout(noStart); clearTimeout(safety); resolve(r); } };
+    // A voice that never starts (offline online-voice, glitch): use a built-in voice from now on.
+    const noStart = setTimeout(() => { if (!started) finish('nostart'); }, 2500);
+    const safety = setTimeout(() => finish('timeout'), 2500 + text.length * 120);
+    u.onstart = () => { started = true; };
+    u.onend = () => finish('ok');
+    u.onerror = e => finish(e.error === 'not-allowed' ? 'blocked' : e.error === 'interrupted' || e.error === 'canceled' ? 'stopped' : 'error');
+    speechSynthesis.resume();
     speechSynthesis.speak(u);
   });
+}
+
+/** Say something and wait until it's finished (with safety timeouts so play never hangs). */
+export async function say(text, { slower = false } = {}) {
+  if (!canSpeak || !text) return;
+  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+  for (const part of chunks(text)) {
+    let r = await speakOne(part, slower);
+    if (r === 'blocked') { onBlocked?.(); return; }
+    if ((r === 'nostart' || r === 'error') && voice && !voice.localService) {
+      avoidNetwork = true; voice = bestVoice(chosenId);
+      speechSynthesis.cancel();
+      r = await speakOne(part, slower);
+    }
+    if (r === 'stopped') return;
+  }
 }
 
 let active = null;

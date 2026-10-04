@@ -322,11 +322,12 @@ function openSettings() {
     : 'No accounts, ads or tracking. Names and scores stay in this browser. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).';
   $('settingsDlg').showModal();
 }
-$('voiceSel').onchange = e => { settings.voiceID = e.target.value || null; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say('What is 7 times 8?'); };
+$('voiceSel').onchange = e => { unlockSound(); settings.voiceID = e.target.value || null; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say('What is 7 times 8?'); };
 $('speed').oninput = e => { settings.voiceSpeed = +e.target.value; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); };
-$('btnHear').onclick = () => { Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say(`Hi ${playingNow()[0]?.name ?? 'friend'}! What is 7 times 8?`); };
+$('btnHear').onclick = () => { unlockSound(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say(`Hi ${playingNow()[0]?.name ?? 'friend'}! What is 7 times 8?`); };
 $('gradeSel').onchange = e => { settings.grade = e.target.value; saveSettings(); pushAccount().catch(() => {}); };
 $('btnMicTest').onclick = async () => {
+  unlockSound();
   const r = $('micReport');
   if (!Voice.canListen) { r.textContent = '❌ This browser can’t listen. Use Chrome, or choose “Type it”.'; return; }
   Voice.setVoice(settings.voiceID, settings.voiceSpeed);
@@ -342,6 +343,17 @@ $('settingsDlg').addEventListener('close', renderHome);
 // MARK: Sounds (made in code, no files)
 
 let actx;
+/** Turn sound on. Must run inside a tap/click (browsers block sound that doesn't). */
+function unlockSound() {
+  Voice.unlock();
+  try {
+    actx ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state !== 'running') actx.resume();
+    const b = actx.createBuffer(1, 1, 22050), src = actx.createBufferSource();
+    src.buffer = b; src.connect(actx.destination); src.start(0);
+  } catch {}
+  $('soundBtn').hidden = true;
+}
 function tone(freqs, dur = 0.15, gap = 0.09, vol = 0.3, type = 'sine') {
   try {
     actx ??= new (window.AudioContext || window.webkitAudioContext)();
@@ -374,6 +386,7 @@ function setMic(state, text) { $('mic').className = 'mic ' + state; $('micText')
 async function start() {
   if (G) G.quit = true;
   Voice.stopListening({ type: 'nothing', why: 'quit' }); Voice.stopTalking();
+  unlockSound(); // while we're still inside the tap on Start, before any waiting
   Voice.setVoice(settings.voiceID, settings.voiceSpeed);
   notice(null);
   const op = settings.mode;
@@ -708,6 +721,9 @@ $('btnEnd').onclick = quit;
 $('btnAgain').onclick = start;
 for (const id of ['btnHome1', 'btnHome2', 'btnHome3']) $(id).onclick = () => { if (G) { G.quit = true; Voice.stopListening({ type: 'nothing', why: 'quit' }); Voice.stopTalking(); } show('home'); renderHome(); };
 buildKeypad();
+// If the browser still blocks the voice, show a big button: one tap turns sound on.
+Voice.whenBlocked(() => { $('soundBtn').hidden = false; });
+$('soundBtn').onclick = () => { unlockSound(); Voice.say('Sound is on!'); };
 Voice.setVoice(settings.voiceID, settings.voiceSpeed);
 boardOp = settings.mode;
 renderHome();
