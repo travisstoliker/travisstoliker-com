@@ -1,6 +1,6 @@
 // Works offline after the first visit. Always tries the network first, so updates show up
 // right away; the saved copy is only used when there's no connection.
-const CACHE = 'ttrt-v3';
+const CACHE = 'ttrt-v3b';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
@@ -16,7 +16,8 @@ self.addEventListener('fetch', e => {
     e.respondWith(fetch(remote, { mode: 'no-cors', referrerPolicy: 'no-referrer' }));
     return;
   }
-  e.respondWith(fetch(e.request).then(r => {
+  // no-cache: always ask the server whether there's something newer, so fixes show up on the next load.
+  e.respondWith(fetch(e.request, { cache: 'no-cache' }).then(r => {
     const copy = r.clone();
     caches.open(CACHE).then(c => c.put(e.request, copy));
     return r;
