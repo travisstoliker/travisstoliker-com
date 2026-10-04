@@ -215,32 +215,37 @@ if (isIOS) {
   };
 }
 
-/** iPhone's built-in voice stays silent. Ask our own /tts address, which the service worker fills with a normal voice. */
-async function speakClip(text) {
-  const ctx = voiceAudio();
+/** iPhone's built-in voice stays silent. Play our own /tts address on the player opened during the tap. */
+function speakClip(text) {
+  const el = htmlAudio;
+  if (!el) return Promise.resolve(false);
   const tl = iosAccent();
   const q = text.slice(0, 180);
-  const key = tl + '\n' + q;
-  let audio = clipCache.get(key);
-  if (!audio) {
-    const url = new URL('tts?tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(q), location.href);
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    try {
-      const res = await fetch(url, { signal: ctrl.signal });
-      if (!res.ok) return false;
-      const bytes = await res.arrayBuffer();
-      if (bytes.byteLength <= 128) return false;
-      audio = await ctx.decodeAudioData(bytes.slice(0));
-      clipCache.set(key, audio);
-    } catch {
-      return false;
-    } finally {
+  const url = new URL('tts?tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(q), location.href);
+  // play() has to run before any wait, or the iPhone drops the sound.
+  return new Promise(resolve => {
+    let done = false, started = false;
+    const finish = ok => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
+      el.onended = null;
+      el.onerror = null;
+      el.onplaying = null;
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(started), 12000);
+    el.onplaying = () => { started = true; };
+    el.onended = () => finish(true);
+    el.onerror = () => finish(false);
+    el.src = url.href;
+    try {
+      const played = el.play();
+      if (played && played.catch) played.catch(() => finish(false));
+    } catch {
+      finish(false);
     }
-  }
-  if (!audio) return false;
-  return playBuffer(ctx, audio);
+  });
 }
 
 function setupIosVoices() {

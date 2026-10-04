@@ -2,7 +2,7 @@
 import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js';
 import * as Coach from './coach.js';
 import { tipFor } from './tips.js';
-import * as Voice from './voice.js?v=10';
+import * as Voice from './voice.js?v=11';
 import * as Cloud from './cloud.js';
 
 const $ = id => document.getElementById(id);
