@@ -108,7 +108,6 @@
     <p class="muted small" id="hearStatus" aria-live="polite"></p>
     <div class="section">
       <h3>Game voice</h3>
-      <div class="segs" id="iosVoices" hidden></div>
       <select id="voiceSel"></select>
       <div class="row"><span>🐢</span><input type="range" id="speed" min="0.8" max="1.2" step="0.05"><span>🐇</span></div>
     </div>
@@ -127,7 +126,7 @@
       <p class="small">Made by Travis Stoliker, so a parent and kid can learn their math facts together, out loud.</p>
       <p class="muted small" id="privacyText"></p>
     </div>
-    <div class="row"><button value="done" class="primary">Done</button></div>
+    <div class="row"><button type="button" class="primary" id="btnDone">Done</button></div>
   </form>
 </dialog>
 

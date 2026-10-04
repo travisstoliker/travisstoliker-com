@@ -123,6 +123,7 @@ function segs(el, options, current, onPick) {
   el.innerHTML = '';
   for (const [value, label] of options) {
     const b = document.createElement('button');
+    b.type = 'button'; // inside a dialog's form, a plain button would submit (close) it
     b.textContent = label;
     if (value === current) b.className = 'on';
     b.onclick = () => onPick(value);
@@ -323,6 +324,8 @@ function openSettings() {
   $('privacyText').textContent = Cloud.available
     ? 'No ads, no tracking. Without signing in, names and scores stay in this browser. Signing in with Google saves your progress to your account so it follows you, and a school account shows your first name and last initial on your school’s leaderboard, only to others at your school. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).'
     : 'No accounts, ads or tracking. Names and scores stay in this browser. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).';
+  // iPhone uses the game's own recorded voice (one voice), so there's no voice list there.
+  sel.hidden = Voice.isIOS;
   $('settingsDlg').showModal();
 }
 $('voiceSel').onchange = e => { settings.voiceID = e.target.value || null; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say('What is 7 times 8?'); unlockSound(); };
@@ -350,6 +353,7 @@ $('btnMicTest').onclick = async () => {
   else if (res.why === 'unavailable') r.textContent = '❌ The microphone is blocked. Click the 🔒 or 🎤 icon in the address bar and allow the microphone. (On a school Chromebook, the school may have turned it off: use “Type it”.)';
   else r.textContent = `Hmm, I didn’t catch a number${res.heard ? ` (heard “${res.heard}”)` : ''}. Try again a bit louder.`;
 };
+$('btnDone').onclick = () => $('settingsDlg').close();
 $('settingsDlg').addEventListener('close', renderHome);
 
 // MARK: Sounds (made in code, no files)
@@ -466,6 +470,7 @@ async function askOne(g, i) {
   const it = findItem(g.op, q.key);
   const chance = it ? Coach.pCorrect(skill(pid, g.op), memories[g.op][pid]?.[q.key], it) : 0.5;
   const trick = tipFor(q);
+  Voice.prefetch?.(q.factLine); // ready in case it's missed
   setMic('speaking');
   await Voice.say(questionLine(g, i, q));
 
