@@ -53,7 +53,28 @@ export function unlock() {
 }
 
 // Only stop if something is actually playing: an unneeded stop makes Safari drop the next line.
-export function stopTalking() { if (canSpeak && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); }
+let clip = null;
+function stopClip() { if (clip) { clip.pause(); clip.src = ''; clip = null; } }
+
+/** iPhone's built-in voice stays silent, so play a real audio file through the loud speaker. */
+function speakClip(text) {
+  stopClip();
+  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=' + encodeURIComponent(text.slice(0, 180));
+  return new Promise(resolve => {
+    const a = new Audio(url);
+    clip = a;
+    a.preload = 'auto';
+    let done = false;
+    const finish = () => { if (done) return; done = true; if (clip === a) clip = null; resolve('ok'); };
+    const safety = setTimeout(finish, 4000 + text.length * 80);
+    a.onended = () => { clearTimeout(safety); finish(); };
+    a.onerror = () => { clearTimeout(safety); finish(); };
+    loudSpeaker();
+    a.play().catch(() => { clearTimeout(safety); finish(); });
+  });
+}
+
+export function stopTalking() { stopClip(); if (canSpeak && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); }
 
 /** Split long speech into sentences: Chrome's online voices stop partway through long ones. */
 function chunks(text) {
@@ -97,7 +118,13 @@ function speakOne(text, slower) {
 
 /** Say something and wait until it's finished (with safety timeouts so play never hangs). */
 export async function say(text, { slower = false } = {}) {
-  if (!canSpeak || !text) return;
+  if (!text) return;
+  if (isIOS) {
+    loudSpeaker();
+    for (const part of chunks(text)) await speakClip(part);
+    return;
+  }
+  if (!canSpeak) return;
   if (!voice) voice = bestVoice(chosenId);
   const gesture = !!navigator.userActivation?.isActive;
   const busy = !!(speechSynthesis.speaking || speechSynthesis.pending);
