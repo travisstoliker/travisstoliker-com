@@ -2,7 +2,7 @@
 import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js';
 import * as Coach from './coach.js';
 import { tipFor } from './tips.js';
-import * as Voice from './voice.js';
+import * as Voice from './voice.js?v=4';
 import * as Cloud from './cloud.js';
 
 const $ = id => document.getElementById(id);
@@ -324,16 +324,17 @@ function openSettings() {
     : 'No accounts, ads or tracking. Names and scores stay in this browser. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).';
   $('settingsDlg').showModal();
 }
-$('voiceSel').onchange = e => { unlockSound(); settings.voiceID = e.target.value || null; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say('What is 7 times 8?'); };
+$('voiceSel').onchange = e => { settings.voiceID = e.target.value || null; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say('What is 7 times 8?'); unlockSound(); };
 $('speed').oninput = e => { settings.voiceSpeed = +e.target.value; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); };
-$('btnHear').onclick = () => { unlockSound(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say(`Hi ${playingNow()[0]?.name ?? 'friend'}! What is 7 times 8?`); };
+$('btnHear').onclick = () => { Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say(`Hi ${playingNow()[0]?.name ?? 'friend'}! What is 7 times 8?`); unlockSound(); };
 $('gradeSel').onchange = e => { settings.grade = e.target.value; saveSettings(); pushAccount().catch(() => {}); };
 $('btnMicTest').onclick = async () => {
-  unlockSound();
   const r = $('micReport');
   if (!Voice.canListen) { r.textContent = '❌ This browser can’t listen. Use Chrome, or choose “Type it”.'; return; }
   Voice.setVoice(settings.voiceID, settings.voiceSpeed);
-  await Voice.say('Say a number, like fifty six.');
+  const said = Voice.say('Say a number, like fifty six.');
+  unlockSound();
+  await said;
   r.textContent = 'Listening… say a number';
   const res = await Voice.listen({ seconds: 7, commands: false, onHeard: t => { if (t) r.textContent = `Hearing “${t}”…`; } });
   if (res.type === 'number') { r.textContent = `✅ Heard ${res.value} (“${res.heard}”).`; Voice.say(`I heard ${res.value}. Ready to play!`); }
@@ -387,8 +388,9 @@ function setMic(state, text) { $('mic').className = 'mic ' + state; $('micText')
 
 async function start() {
   if (G) G.quit = true;
-  Voice.stopListening({ type: 'nothing', why: 'quit' }); Voice.stopTalking();
-  unlockSound(); // while we're still inside the tap on Start, before any waiting
+  Voice.stopListening({ type: 'nothing', why: 'quit' });
+  // Speak before the tap sound. On an iPhone the first spoken line has to be queued
+  // during this tap, and starting other audio first makes that line silent.
   Voice.setVoice(settings.voiceID, settings.voiceSpeed);
   notice(null);
   const op = settings.mode;
@@ -402,9 +404,9 @@ async function start() {
   const names = g.players.map(p => p.c.name);
   const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0];
   setMic('speaking');
-  // Start talking right now, inside the tap on Start: iPhones only allow speech that begins
-  // during a tap (afterwards it can keep talking for the whole game).
+  // Queue the first line before any other sound, still inside the tap on Start.
   const intro = Voice.say(`Let's go! ${list}, you ${names.length > 1 ? 'each get' : 'get'} ${settings.perPlayer} ${op === 'mul' ? '' : OP[op].noun + ' '}questions.`);
+  unlockSound();
   try { await navigator.wakeLock?.request('screen'); } catch {}
   await intro;
   while (!g.quit) {
@@ -728,7 +730,7 @@ for (const id of ['btnHome1', 'btnHome2', 'btnHome3']) $(id).onclick = () => { i
 buildKeypad();
 // If the browser still blocks the voice, show a big button: one tap turns sound on.
 Voice.whenBlocked(() => { $('soundBtn').hidden = false; });
-$('soundBtn').onclick = () => { unlockSound(); Voice.say('Sound is on!'); };
+$('soundBtn').onclick = () => { Voice.say('Sound is on!'); unlockSound(); };
 Voice.setVoice(settings.voiceID, settings.voiceSpeed);
 boardOp = settings.mode;
 renderHome();

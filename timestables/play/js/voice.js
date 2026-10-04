@@ -14,14 +14,17 @@ export function voices() {
   if (!canSpeak) return [];
   return speechSynthesis.getVoices().filter(v => v.lang?.toLowerCase().startsWith('en'));
 }
+function compact(v) { return v.localService && !/enhanced|premium|siri/i.test(v.name); }
 function bestVoice(id) {
   const vs = voices();
   if (id) { const v = vs.find(v => v.voiceURI === id); if (v && !(avoidNetwork && !v.localService)) return v; }
-  const local = vs.filter(v => v.localService);
-  // Built-in voices first. Chrome's Natural and Google voices can start and still be silent.
-  return local.find(v => /^(samantha|alex|ava|zoe|allison|daniel)/i.test(v.name))
+  const local = vs.filter(compact);
+  // Built-in voices first. Chrome's Natural and Google voices, and iPhone "Enhanced"
+  // voices that aren't downloaded, can start and still be silent.
+  return local.find(v => /^(samantha|alex|ava|zoe|allison|daniel|fred|victoria)/i.test(v.name))
     ?? local.find(v => /en-US/i.test(v.lang))
     ?? local[0]
+    ?? vs.find(v => v.localService && /en-US/i.test(v.lang) && !/enhanced|premium/i.test(v.name))
     ?? vs.find(v => /en-US/i.test(v.lang))
     ?? vs[0]
     ?? null;
@@ -41,7 +44,7 @@ export function unlock() {
   if (!canSpeak) return;
   // Resume only. A silent line here gets cancelled by the next one, and Chrome (and Safari on
   // iPhone) then drop that line too. The game instead says its first real line inside the tap.
-  try { if (speechSynthesis.paused) speechSynthesis.resume(); } catch {}
+  try { speechSynthesis.resume(); } catch {}
 }
 
 // Only stop if something is actually playing: an unneeded stop makes Safari drop the next line.
@@ -57,13 +60,15 @@ function chunks(text) {
   return out.map(x => x.trim()).filter(Boolean);
 }
 
+const pinned = [];
 function speakOne(text, slower) {
   return new Promise(resolve => {
     const u = new SpeechSynthesisUtterance(text);
-    // On iPhone, use the phone's own voice unless one was picked in Settings: setting a voice
-    // the phone hasn't downloaded makes it say nothing at all.
-    if (voice && (!isIOS || chosenId)) u.voice = voice;
-    u.lang = (isIOS && !chosenId) ? 'en-US' : voice?.lang ?? 'en-US';
+    // On iPhone, an Enhanced voice that isn't downloaded says nothing. Use a compact
+    // built-in voice unless one was picked in Settings.
+    const iosDefault = isIOS && !chosenId;
+    if (voice && (!iosDefault || compact(voice))) u.voice = voice;
+    u.lang = voice?.lang ?? 'en-US';
     u.rate = Math.min(1.2, Math.max(0.75, rate)) * (slower ? 0.92 : 1);
     u.volume = 1;
     let started = false, done = false;
@@ -75,7 +80,9 @@ function speakOne(text, slower) {
     u.onstart = () => { started = true; };
     u.onend = () => finish('ok');
     u.onerror = e => finish(e.error === 'not-allowed' ? 'blocked' : e.error === 'interrupted' || e.error === 'canceled' ? 'stopped' : 'error');
-    if (speechSynthesis.paused) speechSynthesis.resume();
+    // Keep the utterance alive. Safari drops it if nothing else is holding it.
+    pinned.push(u); if (pinned.length > 16) pinned.shift();
+    try { speechSynthesis.resume(); } catch {}
     speechSynthesis.speak(u);
   });
 }
@@ -84,10 +91,15 @@ function speakOne(text, slower) {
 export async function say(text, { slower = false } = {}) {
   if (!canSpeak || !text) return;
   if (!voice) voice = bestVoice(chosenId);
-  // cancel() then speak() right away makes Chrome and Safari (iPhone) drop the new line: wait a moment.
-  if (speechSynthesis.speaking || speechSynthesis.pending) {
+  const gesture = !!navigator.userActivation?.isActive;
+  const busy = !!(speechSynthesis.speaking || speechSynthesis.pending);
+  // iPhone only speaks a line that is queued during the tap, and it reports "speaking"
+  // even when nothing is queued. Waiting here leaves the tap, so the phone stays silent.
+  if (isIOS && gesture) {
+    try { if (busy) speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
+  } else if (busy) {
     speechSynthesis.cancel();
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 80));
   }
   for (const part of chunks(text)) {
     let r = await speakOne(part, slower);
