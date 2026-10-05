@@ -2,7 +2,6 @@
 // Speaking: speechSynthesis. Listening: SpeechRecognition (Chrome sends the audio to Google
 // to turn it into text). If either is missing or blocked, the game switches to typing.
 import { parse, interpret, soundsUnfinished, command, tokenize } from './numparse.js';
-import SamJs from './sam.js?v=9';
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 export const canListen = !!SR;
@@ -49,238 +48,102 @@ export function unlock() {
   try { speechSynthesis.resume(); } catch {}
 }
 
-// iPhone will not start new audio after the tap's call stack ends unless a node
-// was already started during the tap. The keeper stays on for the whole session.
-let voiceCtx = null, voiceNode = null, keeper = null, htmlAudio = null, htmlStarted = false;
-const clipCache = new Map();
+// iPhone: play recordings of the game's own voice (the iPhone app's "Sunny"), made in advance
+// and served from this site (voice/). Plain audio plays even with the Silent switch on, and
+// nothing is sent anywhere to make speech. One audio player is started inside the first tap;
+// after that, iPhone lets the same player keep playing for the whole visit.
 const SILENT_WAV = 'data:audio/wav;base64,UklGRkQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
-let sam;
+let player = null, primed = false, manifest = null, playToken = 0;
 
-function voiceAudio() {
-  voiceCtx ??= new (window.AudioContext || window.webkitAudioContext)();
-  if (voiceCtx.state !== 'running') voiceCtx.resume();
-  return voiceCtx;
+function loadManifest() {
+  manifest ??= fetch('voice/manifest.json').then(r => (r.ok ? r.json() : {})).catch(() => ({}));
+  return manifest;
 }
+if (isIOS) loadManifest();
 
-/** Synchronous. Call before any await, inside the tap. */
+/** Synchronous. Call inside the tap, before any waiting. */
 function primeIosAudio() {
   loudSpeaker();
-  const ctx = voiceAudio();
-  if (!keeper) {
-    try {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      gain.gain.value = 0.0001;
-      osc.frequency.value = 220;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      keeper = osc;
-    } catch {
-      const rate = ctx.sampleRate || 22050;
-      const buf = ctx.createBuffer(1, rate, rate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = (i & 1) ? 0.0001 : -0.0001;
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.loop = true;
-      const gain = ctx.createGain();
-      gain.gain.value = 0.0001;
-      src.connect(gain);
-      gain.connect(ctx.destination);
-      src.start();
-      keeper = src;
+  if (!player) {
+    player = document.createElement('audio');
+    player.setAttribute('playsinline', '');
+    player.playsInline = true;
+    player.preload = 'auto';
+  }
+  if (!primed) {
+    player.src = SILENT_WAV;
+    try { const p = player.play(); primed = true; p?.catch?.(() => { primed = false; }); } catch { primed = false; }
+  }
+}
+
+const OPS_RE = '(times|divided by|plus|minus)';
+function sentences(text) {
+  return (text.replace(/[’‘]/g, "'").match(/[^.!?]+[.!?]*/g) ?? [text]).map(x => x.trim()).filter(Boolean);
+}
+
+/** Turn what the game wants to say into recorded clips. Lines with names or tips that weren't
+ *  recorded are left out (the screen shows them); questions and answers are always covered. */
+function plan(text, m) {
+  const ids = [], num = n => m[String(n)];
+  const parts = sentences(text.replace(/^Hi [^!?.]*!/, 'Hi!'));
+  for (let i = 0; i < parts.length; i++) {
+    let hit = false;
+    for (let k = 3; k >= 1 && !hit; k--) { // longest recorded run of sentences first
+      const joined = parts.slice(i, i + k).join(' ');
+      if (i + k <= parts.length && m[joined]) { ids.push(m[joined]); i += k - 1; hit = true; }
     }
+    if (hit) continue;
+    let s = parts[i].replace(/^[^,]{1,24}, what's /i, "What's ").replace(/^What is /, "What's ");
+    if (m[s]) { ids.push(m[s]); continue; }
+    if (/ is on fire!$/.test(s)) { ids.push(m["You're on fire! Three in a row!"]); if (parts[i + 1] === 'Three in a row!') i++; continue; }
+    let x = s.match(new RegExp(`^(\\d+) ${OPS_RE} (\\d+)\\?$`)); // a repeated question
+    if (x && m[`What's ${x[1]} ${x[2]} ${x[3]}?`]) { ids.push(m[`What's ${x[1]} ${x[2]} ${x[3]}?`]); continue; }
+    if ((x = s.match(new RegExp(`^(?:What's )?(\\d+) ${OPS_RE} (\\d+)\\?$`)))) { ids.push(m["What's"], num(x[1]), m[x[2]], num(x[3])); continue; }
+    if ((x = s.match(new RegExp(`^(\\d+) ${OPS_RE} (\\d+) is (\\d+)\\.$`)))) { ids.push(num(x[1]), m[x[2]], num(x[3]), m.is, num(x[4])); continue; }
+    if ((x = s.match(/^I heard (\d+)\.$/))) { ids.push(m['I heard'], num(x[1])); continue; }
+    if ((x = s.match(/^You got (\d+) out of (\d+)/))) { ids.push(m['You got'], num(x[1]), m['out of'], num(x[2])); continue; }
   }
-  if (!htmlAudio) {
-    htmlAudio = document.createElement('audio');
-    htmlAudio.setAttribute('playsinline', '');
-    htmlAudio.setAttribute('webkit-playsinline', '');
-    htmlAudio.playsInline = true;
-    htmlAudio.preload = 'auto';
-    htmlAudio.src = SILENT_WAV;
-  }
-  if (!htmlStarted && (!htmlAudio.src || htmlAudio.src.startsWith('data:'))) {
-    try {
-      const played = htmlAudio.play();
-      htmlStarted = true;
-      if (played && played.catch) played.catch(() => { htmlStarted = false; });
-    } catch { htmlStarted = false; }
-  }
+  return ids.filter(Boolean);
 }
 
-function stopClip() {
-  try { voiceNode?.stop(); } catch {}
-  voiceNode = null;
-  if (htmlAudio && htmlAudio.src.startsWith('blob:')) {
-    try { htmlAudio.pause(); } catch {}
-  }
-}
-
-function playBuffer(ctx, audio) {
-  stopClip();
-  const node = ctx.createBufferSource();
-  node.buffer = audio;
-  node.connect(ctx.destination);
-  voiceNode = node;
-  try { node.start(); } catch { return Promise.resolve(false); }
+function playClip(id, token) {
   return new Promise(resolve => {
+    if (token !== playToken) return resolve(false);
+    const el = player;
     let done = false;
-    const finish = ok => { if (!done) { done = true; clearTimeout(t); resolve(ok); } };
-    const t = setTimeout(() => finish(true), Math.ceil((audio.duration || 1) * 1000) + 250);
-    node.onended = () => finish(true);
-  });
-}
-
-function playElementBytes(bytes, type) {
-  if (!htmlAudio) return Promise.resolve(false);
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
-  const el = htmlAudio;
-  return new Promise(resolve => {
-    let done = false;
-    const finish = ok => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      el.onended = null;
-      el.onerror = null;
-      URL.revokeObjectURL(url);
-      resolve(ok);
-    };
-    const timer = setTimeout(() => finish(true), 20000);
+    const finish = ok => { if (!done) { done = true; clearTimeout(timer); el.onended = el.onerror = null; resolve(ok); } };
+    const timer = setTimeout(() => finish(true), 8000);
     el.onended = () => finish(true);
     el.onerror = () => finish(false);
-    el.src = url;
-    try {
-      const played = el.play();
-      if (played && played.catch) played.catch(() => finish(false));
-    } catch { finish(false); }
+    el.src = `voice/${id}.m4a`;
+    el.playbackRate = Math.min(1.2, Math.max(0.8, rate));
+    el.preservesPitch = true;
+    try { const p = el.play(); p?.catch?.(() => finish(false)); } catch { finish(false); }
   });
 }
 
-function speakSam(ctx, text) {
-  try {
-    sam ??= new SamJs();
-    const clean = text.replace(/[^A-Za-z0-9 .,!?'-]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!clean) return Promise.resolve(false);
-    const pcm = sam.buf8(clean);
-    if (!pcm || !pcm.length) return Promise.resolve(false);
-    const audio = ctx.createBuffer(1, pcm.length, 22050);
-    const ch = audio.getChannelData(0);
-    for (let i = 0; i < pcm.length; i++) ch[i] = (pcm[i] - 128) / 256;
-    return playBuffer(ctx, audio);
-  } catch { return Promise.resolve(false); }
+/** Warm the cache for clips we're about to need (the next question), so there's no gap. */
+export async function prefetch(text) {
+  if (!isIOS) return;
+  const m = await loadManifest();
+  for (const id of plan(text, m)) fetch(`voice/${id}.m4a`).catch(() => {});
 }
 
-const ACCENTS = [
-  ['en', 'US'],
-  ['en-GB', 'British'],
-  ['en-AU', 'Australian'],
-  ['en-IN', 'Indian'],
-];
-let accentMem = 'en';
-
-function readStoredAccent() {
-  try {
-    const s = JSON.parse(localStorage.getItem('ttrt.settings') || '{}');
-    if (s && ACCENTS.some(([code]) => code === s.iosAccent)) return s.iosAccent;
-  } catch {}
-  return 'en';
-}
-
-function iosAccent() { return accentMem; }
-
-function writeAccent(code) {
-  let s = {};
-  try { s = JSON.parse(localStorage.getItem('ttrt.settings') || '{}') || {}; } catch { s = {}; }
-  if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
-  s.iosAccent = code;
-  try { localStorage.setItem('ttrt.settings', JSON.stringify(s)); } catch {}
-}
-
-if (isIOS) {
-  accentMem = readStoredAccent();
-  const origSet = localStorage.setItem.bind(localStorage);
-  localStorage.setItem = (key, value) => {
-    if (key === 'ttrt.settings') {
-      try {
-        const next = JSON.parse(value);
-        if (next && typeof next === 'object' && !Array.isArray(next)) {
-          next.iosAccent = accentMem;
-          value = JSON.stringify(next);
-        }
-      } catch {}
-    }
-    return origSet(key, value);
-  };
-}
-
-/** iPhone's built-in voice stays silent. Play our own /tts address on the player opened during the tap. */
-function speakClip(text) {
-  const el = htmlAudio;
-  if (!el) return Promise.resolve(false);
-  const tl = iosAccent();
-  const q = text.slice(0, 180);
-  const url = new URL('tts?tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(q), location.href);
-  // play() has to run before any wait, or the iPhone drops the sound.
-  return new Promise(resolve => {
-    let done = false, started = false;
-    const finish = ok => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      el.onended = null;
-      el.onerror = null;
-      el.onplaying = null;
-      resolve(ok);
-    };
-    const timer = setTimeout(() => finish(started), 12000);
-    el.onplaying = () => { started = true; };
-    el.onended = () => finish(true);
-    el.onerror = () => finish(false);
-    el.src = url.href;
-    try {
-      const played = el.play();
-      if (played && played.catch) played.catch(() => finish(false));
-    } catch {
-      finish(false);
-    }
-  });
-}
-
-function setupIosVoices() {
-  if (!isIOS || typeof document === 'undefined') return;
-  const sel = document.getElementById('voiceSel');
-  if (sel) sel.hidden = true;
-  let box = document.getElementById('iosVoices');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'iosVoices';
-    box.className = 'segs';
-    if (sel && sel.parentNode) sel.parentNode.insertBefore(box, sel);
+async function sayIOS(text) {
+  primeIosAudio(); // still inside the tap when called from one
+  const token = ++playToken;
+  const ids = plan(text, await loadManifest());
+  let any = false;
+  for (const id of ids) {
+    if (token !== playToken) break; // something newer started
+    if (await playClip(id, token)) any = true;
   }
-  box.hidden = false;
-  const paint = () => {
-    box.replaceChildren();
-    const cur = iosAccent();
-    for (const [code, label] of ACCENTS) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = label;
-      if (code === cur) b.className = 'on';
-      b.addEventListener('click', () => {
-        accentMem = code;
-        writeAccent(code);
-        paint();
-      });
-      box.append(b);
-    }
-  };
-  paint();
+  return any || !ids.length;
 }
 
 export function stopTalking() {
-  stopClip();
+  playToken++;
+  try { if (player && primed) player.pause(); } catch {}
   if (canSpeak && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
 }
 
@@ -320,14 +183,7 @@ function speakOne(text, slower) {
 /** Say something and wait until it's finished. Resolves "Done." or "No sound. Try again." */
 export async function say(text, { slower = false } = {}) {
   if (!text) return 'Done.';
-  if (isIOS) {
-    primeIosAudio();
-    let any = false;
-    for (const part of chunks(text)) {
-      if (await speakClip(part)) any = true;
-    }
-    return any ? 'Done.' : 'No sound. Try again.';
-  }
+  if (isIOS) return (await sayIOS(text)) ? 'Done.' : 'No sound. Try again.';
   if (!canSpeak) return 'No sound. Try again.';
   if (!voice) voice = bestVoice(chosenId);
   const gesture = !!navigator.userActivation?.isActive;
@@ -409,4 +265,3 @@ export function listen({ seconds, expect = null, commands = true, phrases = [], 
 }
 export function stopListening(r) { active?.finish(r); }
 
-setupIosVoices();
