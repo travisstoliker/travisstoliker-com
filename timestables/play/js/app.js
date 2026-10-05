@@ -200,7 +200,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&' + 'amp;', 
 
 // MARK: Leaderboard
 
-let boardScope = 'family', boardOp = null, boardWeek = true, schoolRows = null;
+let boardScope = 'family', boardOp = null, boardWeek = false, schoolRows = null; // All time first: "This week" looked like a reset
 
 function familyRows(ops) {
   const start = weekStart();
@@ -404,6 +404,7 @@ function show(id) { for (const s of ['home', 'game', 'results', 'stats']) $(s).h
 function setMic(state, text) { $('mic').className = 'mic ' + state; $('micText').textContent = text ?? ({ listening: 'Listening…', speaking: 'Talking…', paused: 'Paused', tap: 'Type your answer' }[state] ?? ''); }
 
 async function start() {
+  Voice.voiceGameAudio?.(settings.useVoice && Voice.canListen); // before any sound, inside the tap
   if (G) G.quit = true;
   Voice.stopListening({ type: 'nothing', why: 'quit' });
   // Speak before the tap sound. On an iPhone the first spoken line has to be queued
@@ -747,7 +748,7 @@ $('btnSkip').onclick = () => interrupt({ type: 'skip' });
 $('btnPause').onclick = pauseTapped;
 $('btnEnd').onclick = quit;
 $('btnAgain').onclick = start;
-for (const id of ['btnHome1', 'btnHome2', 'btnHome3']) $(id).onclick = () => { if (G) { G.quit = true; Voice.stopListening({ type: 'nothing', why: 'quit' }); Voice.stopTalking(); } show('home'); renderHome(); };
+for (const id of ['btnHome1', 'btnHome2', 'btnHome3']) $(id).onclick = () => { if (G) { G.quit = true; Voice.stopListening({ type: 'nothing', why: 'quit' }); Voice.stopTalking(); } Voice.voiceGameAudio?.(false); show('home'); renderHome(); };
 buildKeypad();
 // If the browser still blocks the voice, show a big button: one tap turns sound on.
 Voice.whenBlocked(() => { $('soundBtn').hidden = false; });

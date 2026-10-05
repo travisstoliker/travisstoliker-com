@@ -36,10 +36,15 @@ if (canSpeak) speechSynthesis.addEventListener?.('voiceschanged', () => { voice 
 let onBlocked = null;
 export function whenBlocked(fn) { onBlocked = fn; }
 
-/** Put speech on the loud speaker. Otherwise iPhone plays beeps out loud and the voice into silence. */
+/** Put speech on the loud speaker. Otherwise iPhone plays beeps out loud and the voice into silence.
+ *  During a "Say it" game on iPhone the page stays in play-and-record mode the whole time (like a
+ *  video call): switching to playback for every line and back to recording for every answer made
+ *  the phone flip back and forth between speaker and microphone. */
+let callMode = false;
 export function loudSpeaker() {
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+  try { if (navigator.audioSession) navigator.audioSession.type = callMode ? 'play-and-record' : 'playback'; } catch {}
 }
+export function voiceGameAudio(on) { callMode = !!on && isIOS; loudSpeaker(); }
 export function unlock() {
   if (!canSpeak) return;
   loudSpeaker();
