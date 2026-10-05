@@ -41,6 +41,11 @@ img { max-width: 100%; height: auto; display: block; }
 .btn:active { transform: translateY(2px); }
 .btn-gold { background: linear-gradient(180deg, #ffe066, #ffb703); color: #2a1a00; box-shadow: 0 6px 0 #c77d00; }
 .btn-ghost { background: var(--panel2); color: var(--ink); }
+.btn-play { background: #fff; color: #2a1a6e; box-shadow: 0 6px 0 #b9b2e8; }
+.howlink { color: var(--ink); opacity: .85; font-weight: 700; text-decoration: none; padding: 8px 4px; }
+.howlink:hover { opacity: 1; text-decoration: underline; }
+.band-ctas { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.band-ctas .btn { min-width: 260px; justify-content: center; }
 .btn small { display: block; font-weight: 700; font-size: .72rem; opacity: .8; line-height: 1; }
 .btn .big { display: block; line-height: 1.1; }
 
