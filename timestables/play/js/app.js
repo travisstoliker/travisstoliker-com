@@ -508,12 +508,12 @@ async function askOne(g, i) {
   $('problem').textContent = q.full;
   if (correct) {
     p.right++; p.streak++; p.best = Math.max(p.best, p.streak);
-    const tough = chance < 0.7;
-    const earned = Coach.speedPoints(elapsed, g.listenSeconds) + (tough ? 5 : 0) + (p.streak >= 3 ? 2 : 0);
+    // Points come only from speed: 15 for an instant answer, down to 5 at the buzzer.
+    const earned = Coach.speedPoints(elapsed, g.listenSeconds);
     p.points += earned;
     if (fast && elapsed < (p.fastest?.secs ?? Infinity)) p.fastest = { q, secs: elapsed };
     feedback('good'); fast ? sfx.fast() : sfx.good();
-    let badge = (fast ? '⚡ Lightning!' : '✅ Correct!') + ` +${earned}` + (tough ? ' 💪' : '');
+    let badge = (fast ? '⚡ Lightning!' : '✅ Correct!') + ` +${earned}`;
     let line = pickOne(fast ? FAST_PRAISE : PRAISE);
     if ([3, 5, 10].includes(p.streak)) { line += ' ' + streakLine(p.streak, p.c.name); badge += ' ' + '🔥'.repeat(p.streak === 3 ? 1 : p.streak === 5 ? 2 : 3); }
     $('badge').textContent = badge;
