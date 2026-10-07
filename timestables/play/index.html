@@ -87,15 +87,17 @@
 <!-- Add / edit player -->
 <dialog id="playerDlg">
   <form method="dialog" class="dlg">
-    <h2 id="playerDlgTitle">Add a player</h2>
-    <div class="bigAvatar" id="dlgAvatar">🦖</div>
-    <input id="dlgName" maxlength="20" placeholder="Name" autocomplete="off">
-    <p class="muted small center">Pick an animal</p>
-    <div class="animals" id="animals"></div>
-    <div class="row">
-      <button value="cancel" class="ghost">Cancel</button>
+    <!-- Cancel and Save sit on top so the phone keyboard can't hide them. Save is the form's only
+         submit button, so Return/Go on the keyboard saves. -->
+    <div class="dlgbar">
+      <button type="button" class="ghost" id="dlgCancel">Cancel</button>
+      <h2 id="playerDlgTitle">Add a player</h2>
       <button value="save" class="primary" id="dlgSave">Save</button>
     </div>
+    <div class="bigAvatar" id="dlgAvatar">🦖</div>
+    <input id="dlgName" maxlength="20" placeholder="Name" autocomplete="off" enterkeyhint="done">
+    <p class="muted small center">Pick an animal</p>
+    <div class="animals" id="animals"></div>
     <button value="delete" class="danger" id="dlgDelete" hidden>Delete player…</button>
   </form>
 </dialog>

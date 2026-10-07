@@ -143,6 +143,11 @@ dialog {
 }
 /* A closed dialog must stay hidden: the display: flex above would otherwise keep it on screen. */
 dialog:not([open]) { display: none !important; }
+/* Top bar in the add-player box: stays put while the rest scrolls. */
+.dlgbar { position: sticky; top: -20px; z-index: 2; margin: -20px -20px 0; padding: 14px 16px; background: var(--bg);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--panel2); }
+.dlgbar h2 { font-size: 18px; margin: 0; flex: 1; text-align: center; }
+.dlgbar button { padding: 10px 14px; }
 dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .dlg {
   padding: 20px;

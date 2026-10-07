@@ -280,7 +280,8 @@ function editPlayer(p) {
   $('dlgDelete').hidden = !p || p.account;
   drawAnimals();
   $('playerDlg').showModal();
-  if (!p) $('dlgName').focus();
+  // On phones, don't pop the keyboard right away: it would cover the animals.
+  if (!p && !matchMedia('(pointer: coarse)').matches) $('dlgName').focus();
 }
 function drawAnimals() {
   $('dlgAvatar').textContent = dlgAvatar;
@@ -293,9 +294,10 @@ function drawAnimals() {
   }
 }
 // Enter in the name box saves (otherwise the form's first button, Cancel, would win).
-$('dlgName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('playerDlg').close('save'); } });
-$('playerDlg').addEventListener('close', () => {
-  const v = $('playerDlg').returnValue, name = $('dlgName').value.trim();
+// Save/Delete are handled right when they're tapped. (Some browsers never send the dialog's
+// "close" event, so waiting for it meant a tapped Save silently did nothing.)
+function finishPlayer(v) {
+  const name = $('dlgName').value.trim();
   if (v === 'save' && name) {
     if (editing) { editing.name = name; editing.avatar = dlgAvatar; }
     else settings.players.push({ id: uuid(), name, avatar: dlgAvatar, playing: playingNow().length < MAX_PLAYERS });
@@ -305,7 +307,20 @@ $('playerDlg').addEventListener('close', () => {
     for (const op of OPS) { delete memories[op][editing.id]; delete skillSets[op][editing.id]; resultSets[op] = resultSets[op].filter(r => r.player !== editing.id); saveProgress(op); }
     saveSettings();
   }
+  editing = null;
   renderHome();
+}
+const playerForm = $('playerDlg').querySelector('form');
+playerForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const v = e.submitter?.value || 'save'; // Return on the keyboard counts as Save
+  if (v === 'save' && !$('dlgName').value.trim()) { $('dlgName').focus(); return; } // a name is needed
+  try { $('playerDlg').close(v); } catch {}
+  finishPlayer(v);
+});
+$('dlgCancel')?.addEventListener('click', () => { try { $('playerDlg').close('cancel'); } catch {} renderHome(); });
+$('dlgName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); playerForm.requestSubmit ? playerForm.requestSubmit($('dlgSave')) : $('dlgSave').click(); }
 });
 
 // MARK: Settings
