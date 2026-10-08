@@ -66,9 +66,57 @@ function mergeFacts(a = {}, b = {}) {
   return out;
 }
 
+// Family mode: the signed-in account is a family's account (a parent's, made in the app), so this
+// browser shows and saves the whole family: every player and their scores, same as the phones.
+let familyMode = false;
+
+function mergeSkills(a = {}, b = {}) {
+  const out = { ...a };
+  for (const [k, s] of Object.entries(b)) if (!out[k] || (s?.answers ?? 0) > (out[k]?.answers ?? 0)) out[k] = s;
+  return out;
+}
+
+async function joinFamily(u, fam) {
+  const deleted = new Set([...(load('deletedPlayers', [])), ...fam.deleted]);
+  // This browser's own "signed-in account" player isn't a family member: the family has its players.
+  const local = settings.players.filter(p => !(p.account && p.id === u.uid) && !deleted.has(p.id));
+  const roster = [...local];
+  for (const p of fam.roster) if (!deleted.has(p.id) && !roster.some(x => x.id === p.id)) roster.push({ ...p, playing: false });
+  settings.players = roster;
+  if (!playingNow().length && roster.length) roster[0].playing = true;
+  for (const op of OPS) {
+    const d = fam.data[op];
+    const mem = { ...memories[op] };
+    for (const [pid, facts] of Object.entries(d.memory)) mem[pid] = mergeFacts(mem[pid], facts);
+    memories[op] = mem;
+    skillSets[op] = mergeSkills(skillSets[op], d.skills);
+    resultSets[op] = mergeResults(resultSets[op], d.results).filter(r => !deleted.has(r.player));
+    for (const pid of deleted) { delete memories[op][pid]; delete skillSets[op][pid]; }
+    saveProgress(op);
+  }
+  save('deletedPlayers', [...deleted]);
+  save('knownNames', { ...fam.knownNames, ...load('knownNames', {}) });
+  familyMode = true;
+  saveSettings();
+  await pushFamily();
+}
+
+async function pushFamily() {
+  if (!user || !familyMode) return;
+  const data = {};
+  for (const op of OPS) data[op] = { memory: memories[op], skills: skillSets[op], results: resultSets[op] };
+  await Cloud.saveFamily(user, { roster: settings.players.filter(p => !(p.account && p.id === user.uid)),
+    knownNames: load('knownNames', {}), deleted: load('deletedPlayers', []), data });
+}
+
 async function signedIn(u) {
   user = u;
+  familyMode = false;
   if (!u) { renderHome(); return; }
+  try {
+    const fam = await Cloud.loadFamily(u.uid);
+    if (fam) { await joinFamily(u, fam); renderHome(); return; }
+  } catch (e) { console.warn('family load failed', e); }
   // The account is a player in the family, saved under the Google account's id.
   let p = settings.players.find(p => p.id === u.uid);
   if (!p) {
@@ -139,7 +187,7 @@ function renderAccount() {
   if (!Cloud.available) return;
   if (user) {
     const who = document.createElement('span'); who.className = 'who';
-    who.textContent = `Saving to ${user.email}`;
+    who.textContent = familyMode ? `👪 Family saved to ${user.email}` : `Saving to ${user.email}`;
     const out = document.createElement('button'); out.className = 'link'; out.textContent = 'Sign out';
     out.onclick = async () => { await Cloud.signOut(); settings.players = settings.players.filter(p => !p.account); saveSettings(); };
     el.append(who, out);
@@ -304,10 +352,12 @@ function finishPlayer(v) {
     saveSettings(); if (editing?.account) pushAccount().catch(() => {});
   } else if (v === 'delete' && editing && confirm(`Delete ${editing.name} forever? This erases their scores and everything the coach learned about them.`)) {
     settings.players = settings.players.filter(p => p.id !== editing.id);
+    save('deletedPlayers', [...new Set([...load('deletedPlayers', []), editing.id])]); // so the family's other devices drop them too
     for (const op of OPS) { delete memories[op][editing.id]; delete skillSets[op][editing.id]; resultSets[op] = resultSets[op].filter(r => r.player !== editing.id); saveProgress(op); }
     saveSettings();
   }
   editing = null;
+  if (v === 'save' || v === 'delete') pushFamily().catch(() => {});
   renderHome();
 }
 const playerForm = $('playerDlg').querySelector('form');
@@ -658,7 +708,8 @@ async function finish(g, early) {
     for (const p of g.players) if (p.asked) resultSets[op].push({ player: p.c.id, date: nowRef(), points: p.points, right: p.right, asked: p.asked, won: g.players.length > 1 && winners === 1 && p.points === top });
     resultSets[op] = resultSets[op].slice(-2000);
     saveProgress(op);
-    if (user && g.players.some(p => p.c.id === user.uid)) pushAccount().catch(() => notice('Couldn’t save to your Google account just now; it’ll try again after your next round.'));
+    if (familyMode) pushFamily().catch(() => notice('Couldn’t save to your family’s Google account just now; it’ll try again after your next round.'));
+    else if (user && g.players.some(p => p.c.id === user.uid)) pushAccount().catch(() => notice('Couldn’t save to your Google account just now; it’ll try again after your next round.'));
   }
   const ranked = [...g.players].sort((a, b) => b.points - a.points);
   $('resultsTitle').textContent = early ? 'Game ended' : ranked.length > 1 && ranked[0].points > ranked[1].points ? `🏆 ${ranked[0].c.name} wins!` : '🎉 Round over!';

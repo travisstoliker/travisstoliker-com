@@ -63,6 +63,33 @@ export async function saveAccount(uid, profile, progress) {
   await S.setDoc(S.doc(db, 'users', uid), { profile, progress: enc, updated: S.serverTimestamp() });
 }
 
+/** The family saved under this account (a parent's): roster + everyone's progress, or null. */
+export async function loadFamily(uid) {
+  const { db, S } = await load();
+  const fam = await S.getDoc(S.doc(db, 'families', uid));
+  if (!fam.exists()) return null;
+  const J = (v, d) => { try { return v ? JSON.parse(v) : d; } catch { return d; } };
+  const f = fam.data(), data = {};
+  for (const op of ['mul', 'div', 'add', 'sub']) {
+    const d = await S.getDoc(S.doc(db, 'families', uid, 'data', op));
+    const x = d.exists() ? d.data() : {};
+    data[op] = { memory: J(x.memory, {}), skills: J(x.skills, {}), results: J(x.results, []) };
+  }
+  return { roster: J(f.roster, []), knownNames: J(f.knownNames, {}), deleted: J(f.deleted, []), data };
+}
+
+export async function saveFamily(user, { roster, knownNames, deleted, data }) {
+  const { db, S } = await load();
+  const now = S.serverTimestamp();
+  // merge: keep fields this page doesn't know about (like members another parent was invited as)
+  await S.setDoc(S.doc(db, 'families', user.uid), { roster: JSON.stringify(roster), knownNames: JSON.stringify(knownNames),
+    deleted: JSON.stringify(deleted), ownerEmail: user.email, updated: now }, { merge: true });
+  for (const [op, d] of Object.entries(data)) {
+    await S.setDoc(S.doc(db, 'families', user.uid, 'data', op), { memory: JSON.stringify(d.memory),
+      skills: JSON.stringify(d.skills), results: JSON.stringify(d.results), updated: now });
+  }
+}
+
 /** This player's row on their school's leaderboard. */
 export async function saveBoardRow(user, row) {
   const school = schoolOf(user);
