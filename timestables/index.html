@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Times Table Road Trip: say-it-out-loud multiplication for the car</title>
-  <meta name="description" content="A free, hands-free times-tables game for iPhone and iPad. It asks multiplication questions out loud, listens for your answers, adapts to each player, and gives tips when you miss one. No ads, no accounts, no tracking.">
+  <meta name="description" content="A free, hands-free times-tables game for iPhone, iPad, Android and the web. It asks multiplication questions out loud, listens for your answers, adapts to each player, and gives tips when you miss one. No ads, no accounts, no tracking.">
   <link rel="canonical" href="https://travisstoliker.com/timestables/">
   <meta property="og:title" content="Times Table Road Trip">
   <meta property="og:description" content="Say-it-out-loud multiplication for the whole family. Free on iPhone and iPad.">
@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=dl1">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -54,9 +54,9 @@
         <div class="ctas">
           <a class="btn btn-gold" href="https://apps.apple.com/app/id6818310411"><span><small>Free on the</small><span class="big">App Store</span></span></a>
           <a class="btn btn-play" href="play/"><span><small>Free, no download</small><span class="big">▶ Play in your browser</span></span></a>
-          <a class="howlink" href="#how">See how it works ↓</a>
+          <a class="howlink" href="#get">Android &amp; test versions ↓</a>
         </div>
-        <p class="fine">iPhone &amp; iPad · No ads · No accounts · Works offline</p>
+        <p class="fine">iPhone, iPad, Android &amp; web · No ads · Free</p>
       </div>
       <div class="phone"><img src="img/iphone-game.jpg" alt="The game asking 7 × 8 with a points countdown and two players' scores" width="640" height="1385"></div>
     </header>
@@ -192,16 +192,44 @@
 
   <section>
     <div class="wrap">
-      <div class="band">
-        <h2>Make the next drive count.</h2>
-        <p>Free for iPhone and iPad, or play right in your web browser (great on Chromebooks).</p>
-        <div class="band-ctas">
-          <a class="btn btn-gold" href="https://apps.apple.com/app/id6818310411"><span><small>Free on the</small><span class="big">App Store</span></span></a>
-          <a class="btn btn-play" href="play/"><span><small>Free, no download</small><span class="big">▶ Play in your browser</span></span></a>
+      <div class="band" id="get">
+        <h2>Get Times Table Road Trip</h2>
+        <p>Free everywhere. Your family's scores follow you when you save them to Google.</p>
+        <div class="dl-grid">
+          <div class="dl-card">
+            <h3>iPhone &amp; iPad</h3>
+            <a class="btn btn-gold" id="dl-appstore" href="https://apps.apple.com/app/id6818310411"><span><small>Free on the</small><span class="big">App Store</span></span></a>
+            <p class="dl-status" id="appstore-status">Waiting for Apple's approval. Until then, use the test version below.</p>
+            <a class="btn btn-play" href="https://testflight.apple.com/join/Mr3GrZBw"><span><small>Newest test version (needs the free TestFlight app)</small><span class="big">Join the iPhone test</span></span></a>
+            <p class="dl-note">Test version 1.1: × ÷ + − modes, family scores saved to Google.</p>
+          </div>
+          <div class="dl-card">
+            <h3>Android</h3>
+            <span class="btn btn-ghost btn-off" aria-disabled="true"><span><small>Coming soon to</small><span class="big">Google Play</span></span></span>
+            <p class="dl-status">Waiting for Google's approval.</p>
+            <a class="btn btn-play" href="android/TimesTables.apk" download><span><small>Direct download for Android phones</small><span class="big">Download the Android app</span></span></a>
+            <p class="dl-note">After it downloads, tap it and allow "Install unknown apps" when Android asks. Version 1.1.</p>
+          </div>
+          <div class="dl-card">
+            <h3>Chromebook &amp; computer</h3>
+            <a class="btn btn-play" href="play/"><span><small>Free, no download</small><span class="big">▶ Play in your browser</span></span></a>
+            <p class="dl-note">Works in Chrome, Edge and Safari. Always the newest version.</p>
+          </div>
         </div>
       </div>
     </div>
   </section>
+
+  <script>
+    // Once Apple approves the app, Apple's lookup finds it and the "waiting" note goes away.
+    function appStoreLookup(d) {
+      if (d && d.resultCount > 0) {
+        var s = document.getElementById('appstore-status');
+        if (s) s.textContent = 'Version ' + d.results[0].version + ' is live.';
+      }
+    }
+  </script>
+  <script src="https://itunes.apple.com/lookup?id=6818310411&callback=appStoreLookup" async></script>
 
   <footer>
     <div class="wrap row">
