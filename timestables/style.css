@@ -158,3 +158,4 @@ footer a { color: var(--muted); }
 .dl-card p.dl-status { color: var(--gold); }
 .btn-off { opacity: .55; cursor: default; box-shadow: none; }
 @media (max-width: 820px) { .dl-grid { grid-template-columns: 1fr; } }
+.appstore.is-soon { opacity: .6; box-shadow: none; pointer-events: none; }
