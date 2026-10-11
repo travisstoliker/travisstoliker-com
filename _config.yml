@@ -1,0 +1,2 @@
+# GitHub Pages skips dot-folders unless listed; Android needs /.well-known/assetlinks.json
+include: [".well-known"]

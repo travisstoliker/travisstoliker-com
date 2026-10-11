@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.stoliker.timestableroadtrip",
+    "sha256_cert_fingerprints": [
+      "9C:50:27:EB:88:8E:FE:CE:E8:68:7D:E0:4F:B3:97:C9:38:40:77:B6:9E:9D:42:4B:6E:FD:E6:96:FD:74:1F:EC"
+    ]
+  }
+}]
