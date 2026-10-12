@@ -2,7 +2,7 @@
 import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js';
 import * as Coach from './coach.js';
 import { tipFor } from './tips.js';
-import * as Voice from './voice.js?v=11';
+import * as Voice from './voice.js?v=12';
 import * as Cloud from './cloud.js';
 
 const $ = id => document.getElementById(id);
@@ -389,8 +389,8 @@ function openSettings() {
   $('privacyText').textContent = Cloud.available
     ? 'No ads, no tracking. Without signing in, names and scores stay in this browser. Signing in with Google saves your progress to your account so it follows you, and a school account shows your first name and last initial on your school’s leaderboard, only to others at your school. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).'
     : 'No accounts, ads or tracking. Names and scores stay in this browser. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).';
-  // iPhone uses the game's own recorded voice (one voice), so there's no voice list there.
-  sel.hidden = Voice.isIOS;
+  // The game speaks with its own recorded voice (one voice), so there's no voice list.
+  sel.hidden = Voice.useClips;
   $('settingsDlg').showModal();
 }
 $('voiceSel').onchange = e => { settings.voiceID = e.target.value || null; saveSettings(); Voice.setVoice(settings.voiceID, settings.voiceSpeed); Voice.say('What is 7 times 8?'); unlockSound(); };
@@ -618,7 +618,7 @@ async function getAnswer(g, q, clock) {
     if (g.usingVoice) {
       // iPhone reports the question "finished" a moment before its last word plays, and turning
       // the microphone on cuts it off ("9 times…"): wait a beat there.
-      if (Voice.isIOS) await new Promise(r => setTimeout(r, 450));
+      if (Voice.useClips) await new Promise(r => setTimeout(r, Voice.isIOS ? 450 : 150));
       setMic('listening'); sfx.listen();
       return await Voice.listen({ seconds: g.listenSeconds, expect: q.answer, commands: true, max: OP[g.op].max,
         onHeard: t => { $('heard').textContent = t ? `“${t}”` : ' '; } });

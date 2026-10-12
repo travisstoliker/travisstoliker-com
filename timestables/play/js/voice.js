@@ -8,6 +8,9 @@ export const canListen = !!SR;
 export const canSpeak = 'speechSynthesis' in window;
 /** iPhone and iPad (every browser there, Chrome included, uses Safari's engine). */
 export const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+/** Every device speaks with the recorded "Sunny" voice (the iPhone app's voice). If the
+ *  recordings can't load, Android, Chromebooks and computers fall back to their built-in voice. */
+export const useClips = true;
 
 let voice = null, rate = 1, chosenId = null, avoidNetwork = false;
 export function voices() {
@@ -53,8 +56,8 @@ export function unlock() {
   try { speechSynthesis.resume(); } catch {}
 }
 
-// iPhone: play recordings of the game's own voice (the iPhone app's "Sunny"), made in advance
-// and served from this site (voice/). Plain audio plays even with the Silent switch on, and
+// Play recordings of the game's own voice (the iPhone app's "Sunny"), made in advance
+// and served from this site (voice/). On iPhone this is the only way that works reliably. Plain audio plays even with the Silent switch on, and
 // nothing is sent anywhere to make speech. One audio player is started inside the first tap;
 // after that, iPhone lets the same player keep playing for the whole visit.
 const SILENT_WAV = 'data:audio/wav;base64,UklGRkQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
@@ -64,7 +67,7 @@ function loadManifest() {
   manifest ??= fetch('voice/manifest.json').then(r => (r.ok ? r.json() : {})).catch(() => ({}));
   return manifest;
 }
-if (isIOS) loadManifest();
+if (useClips) loadManifest();
 
 /** Synchronous. Call inside the tap, before any waiting. */
 function primeIosAudio() {
@@ -129,7 +132,7 @@ function playClip(id, token) {
 
 /** Warm the cache for clips we're about to need (the next question), so there's no gap. */
 export async function prefetch(text) {
-  if (!isIOS) return;
+  if (!useClips) return;
   const m = await loadManifest();
   for (const id of plan(text, m)) fetch(`voice/${id}.m4a`).catch(() => {});
 }
@@ -189,6 +192,11 @@ function speakOne(text, slower) {
 export async function say(text, { slower = false } = {}) {
   if (!text) return 'Done.';
   if (isIOS) return (await sayIOS(text)) ? 'Done.' : 'No sound. Try again.';
+  if (useClips) {
+    primeIosAudio(); // still inside the tap when called from one
+    const m = await loadManifest();
+    if (Object.keys(m).length) return (await sayIOS(text)) ? 'Done.' : 'No sound. Try again.';
+  }
   if (!canSpeak) return 'No sound. Try again.';
   if (!voice) voice = bestVoice(chosenId);
   const gesture = !!navigator.userActivation?.isActive;
