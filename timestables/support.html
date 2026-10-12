@@ -27,7 +27,7 @@
     <p>Every version is free. The live version is the finished one; the test version has the newest features first.</p>
     <ul>
       <li><b>Web (any computer or Chromebook):</b> <a href="play/">play in your browser</a>. Always the newest version, nothing to install.</li>
-      <li><b>iPhone and iPad, live:</b> <a href="https://apps.apple.com/app/id6818310411">the App Store</a> (coming soon; Apple is reviewing it).</li>
+      <li id="appstore-line"><b>iPhone and iPad, live:</b> the App Store, coming soon (Apple is reviewing it). Until then, use the test version.</li>
       <li><b>iPhone and iPad, test:</b> install Apple's free TestFlight app, then open <a href="https://testflight.apple.com/join/Mr3GrZBw">this test link</a> on the iPhone or iPad.</li>
       <li><b>Android, live:</b> <a href="android/TimesTables.apk">download the Android app</a>, tap the file, and allow "Install unknown apps" when Android asks. Google Play is coming soon.</li>
       <li><b>Android, test:</b> <a href="android/beta-5091f960db63/TimesTables-native.apk">download the new full Android app</a>. It downloads Sunny's voice once on first launch (about 390 MB), so use Wi-Fi.</li>
@@ -63,6 +63,14 @@
       <li>The leaderboard on the home screen shows this week and all time. Progress is kept on each device and isn't shared between devices.</li>
     </ul>
   </main>
+  <script>
+    // Once Apple approves the app, this line becomes a link to it by itself.
+    function appStoreLookup(d) {
+      var li = document.getElementById('appstore-line');
+      if (li && d && d.resultCount > 0) li.innerHTML = '<b>iPhone and iPad, live:</b> <a href="https://apps.apple.com/app/id6818310411">get it on the App Store</a> (version ' + d.results[0].version + ').';
+    }
+  </script>
+  <script src="https://itunes.apple.com/lookup?id=6818310411&callback=appStoreLookup" async></script>
   <footer>
     <div class="wrap row">
       <span>Made by <a href="https://www.travisstoliker.com">Travis Stoliker</a> · © 2026</span>
