@@ -2,7 +2,7 @@
 import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js';
 import * as Coach from './coach.js';
 import { tipFor } from './tips.js';
-import * as Voice from './voice.js?v=12';
+import * as Voice from './voice.js?v=13';
 import * as Cloud from './cloud.js';
 
 const $ = id => document.getElementById(id);
@@ -539,16 +539,22 @@ async function askOne(g, i) {
   const chance = it ? Coach.pCorrect(skill(pid, g.op), memories[g.op][pid]?.[q.key], it) : 0.5;
   const trick = tipFor(q);
   Voice.prefetch?.(q.factLine); // ready in case it's missed
+  g.pending = null; // a tap meant for the last question doesn't carry over
   setMic('speaking');
   await Voice.say(questionLine(g, i, q));
 
-  let tries = 0, result, elapsed = 0;
+  // Time spent answering so far. Pause, Repeat and a do-over don't restart the clock: it picks
+  // up where it left off, so pausing can't buy a fresh countdown.
+  const clock = skill(pid, g.op).clock * q.clockScale;
+  let tries = 0, result, elapsed = 0, used = 0, fresh = false, redone = false;
+  for (;;) {
   for (;;) {
     if (g.quit) return;
     if (g.paused) { await waitUnpaused(g); if (g.quit) return; setMic('speaking'); await Voice.say(`${q.spoken}?`); }
     const t0 = performance.now();
-    if (g.pending) { result = g.pending; g.pending = null; } else result = await getAnswer(g, q, skill(pid, g.op).clock * q.clockScale);
-    elapsed = (performance.now() - t0) / 1000;
+    if (g.pending) { result = g.pending; g.pending = null; } else result = await getAnswer(g, q, clock, used, fresh);
+    used += (performance.now() - t0) / 1000; fresh = false;
+    elapsed = used;
     if (g.quit) return;
     if (result.type === 'command' && result.value === 'repeat') { setMic('speaking'); await Voice.say(`${q.spoken}?`); continue; }
     if (result.type === 'command' && result.value === 'pause') { pauseTapped(); continue; }
@@ -560,10 +566,14 @@ async function askOne(g, i) {
       await Voice.say("I can't hear right now, so let's type the answers.");
       continue;
     }
-    if (result.type === 'nothing' && result.why === 'timeout' && ++tries < 2) { setMic('speaking'); await Voice.say(`I didn't hear that. ${q.spoken}?`); continue; }
+    if (result.type === 'nothing' && result.why === 'timeout' && ++tries < 2) { setMic('speaking'); await Voice.say(`I didn't hear that. ${q.spoken}?`); fresh = true; continue; }
     break;
   }
 
+  // Kept so a misheard answer can be taken back (see below).
+  const before = { asked: p.asked, streak: p.streak, misses: [...p.misses], retry: [...p.retry], retried: new Set(p.retried) };
+  const skillBefore = structuredClone(skillSets[g.op][pid]);
+  const factBefore = structuredClone(memories[g.op][pid]?.[q.key]);
   p.asked++;
   const correct = result.type === 'number' && result.value === q.answer;
   const fast = correct && elapsed <= Coach.FAST_SECS;
@@ -591,14 +601,45 @@ async function askOne(g, i) {
     if (trick) { $('tip').textContent = '💡 ' + trick; $('tip').hidden = false; $('problem').className = 'problem withTip'; }
     renderScores();
     const lead = result.type === 'skip' ? 'Skipped. ' : result.type === 'number' ? 'Not quite. ' : '';
+    const canRedo = !redone && g.usingVoice;
+    if (canRedo) setRedo(true);
     await Voice.say(lead + q.factLine + (trick ? ' ' + trick : ''), { slower: true });
+    // A moment to tap Try again after hearing the miss explained.
+    for (let k = 0; canRedo && k < 12 && !g.pending && !g.quit; k++) await new Promise(r => setTimeout(r, 100));
+    setRedo(false);
+    // Try again (Repeat) tapped while the miss is explained: usually the speech recognizer got the
+    // answer wrong. Take the miss back and ask the same question once more, on the same clock.
+    if (canRedo && g.pending?.type === 'command' && g.pending.value === 'repeat') {
+      g.pending = null; redone = true;
+      Object.assign(p, before);
+      if (skillBefore) skillSets[g.op][pid] = skillBefore; else delete skillSets[g.op][pid];
+      const mem = memories[g.op][pid] ??= {};
+      if (factBefore) mem[q.key] = factBefore; else delete mem[q.key];
+      saveProgress(g.op);
+      feedback(null); $('tip').hidden = true; $('badge').innerHTML = '&' + 'nbsp;'; $('heard').innerHTML = '&' + 'nbsp;';
+      $('problem').textContent = q.text; $('problem').className = 'problem';
+      renderScores();
+      setMic('speaking');
+      await Voice.say(`Okay, try again. ${q.spoken}?`);
+      tries = 0;
+      continue;
+    }
+  }
+  break;
   }
   await new Promise(r => setTimeout(r, 150));
 }
 
+/** After a miss heard by voice, Repeat becomes "Try again" for a moment. */
+function setRedo(on) {
+  const b = $('btnRepeat'); if (!b) return;
+  b.innerHTML = on ? '↻<span>Try again</span>' : '↻<span>Repeat</span>';
+  if (on) $('heard').textContent = 'Heard wrong? Tap Try again.';
+}
+
 let timerRaf;
-function runTimer(seconds) {
-  const t0 = performance.now();
+function runTimer(seconds, already = 0) {
+  const t0 = performance.now() - already * 1000;
   cancelAnimationFrame(timerRaf);
   const tick = () => {
     const el = (performance.now() - t0) / 1000, f = Math.max(0, 1 - el / seconds);
@@ -611,22 +652,25 @@ function runTimer(seconds) {
 }
 function stopTimer() { cancelAnimationFrame(timerRaf); $('timerFill').style.width = '0'; $('pts').className = 'pts'; $('pts').textContent = '+15'; }
 
-async function getAnswer(g, q, clock) {
+/** Listen (or wait for typing) for the rest of this question's clock. `used` is time already
+ *  spent on it; `fresh` gives a whole new window (after "I didn't hear that"). */
+async function getAnswer(g, q, clock, used = 0, fresh = false) {
   g.listenSeconds = clock * (g.usingVoice ? 1 : 1.5);
-  runTimer(g.listenSeconds);
+  const window = fresh ? g.listenSeconds : Math.max(g.listenSeconds - used, Math.min(4, g.listenSeconds));
+  runTimer(g.listenSeconds, g.listenSeconds - window);
   try {
     if (g.usingVoice) {
       // iPhone reports the question "finished" a moment before its last word plays, and turning
       // the microphone on cuts it off ("9 times…"): wait a beat there.
       if (Voice.useClips) await new Promise(r => setTimeout(r, Voice.isIOS ? 450 : 150));
       setMic('listening'); sfx.listen();
-      return await Voice.listen({ seconds: g.listenSeconds, expect: q.answer, commands: true, max: OP[g.op].max,
+      return await Voice.listen({ seconds: window, expect: q.answer, commands: true, max: OP[g.op].max,
         onHeard: t => { $('heard').textContent = t ? `“${t}”` : ' '; } });
     }
     setMic('tap');
     $('entry').textContent = '?';
     return await new Promise(resolve => {
-      const timer = setTimeout(() => done({ type: 'nothing', why: 'timeout' }), g.listenSeconds * 1000);
+      const timer = setTimeout(() => done({ type: 'nothing', why: 'timeout' }), window * 1000);
       const done = r => { clearTimeout(timer); g.tapResolve = null; resolve(r); };
       g.tapResolve = done; g.entry = '';
     });
