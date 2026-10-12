@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=dl2">
+  <link rel="stylesheet" href="style.css?v=dl4">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -194,27 +194,48 @@
     <div class="wrap">
       <div class="band" id="get">
         <h2>Get Times Table Road Trip</h2>
-        <p>Free everywhere. Your family's scores follow you when you save them to Google.</p>
+        <p>Free on every device. Each one has a <b>live</b> version and a <b>test</b> version with the newest features.</p>
         <div class="dl-grid">
+
           <div class="dl-card">
-            <h3>iPhone &amp; iPad</h3>
-            <a class="btn btn-gold appstore is-soon" id="dl-appstore" href="https://apps.apple.com/app/id6818310411"><span><small>Coming soon to the</small><span class="big">App Store</span></span></a>
-            <p class="dl-status" id="appstore-status">Waiting for Apple's approval. Until then, use the test version below.</p>
-            <a class="btn btn-play" href="https://testflight.apple.com/join/Mr3GrZBw"><span><small>Newest test version (needs the free TestFlight app)</small><span class="big">Join the iPhone test</span></span></a>
+            <h3>💻 Web</h3>
+            <p class="dl-kind">Live</p>
+            <a class="btn btn-play" href="play/"><span><small>Free, nothing to install</small><span class="big">▶ Play in your browser</span></span></a>
+            <p class="dl-note">Chrome, Edge and Safari, and great on a Chromebook.</p>
+            <p class="dl-kind">Test</p>
+            <p class="dl-note">No separate test version: the web game is always the newest build, with × ÷ + − and Sunny's voice.</p>
+          </div>
+
+          <div class="dl-card">
+            <h3>📱 iPhone</h3>
+            <p class="dl-kind">Live</p>
+            <a class="btn btn-gold appstore is-soon" href="https://apps.apple.com/app/id6818310411"><span><small>Coming soon to the</small><span class="big">App Store</span></span></a>
+            <p class="dl-status appstore-status">Version 1.0 is waiting for Apple's review. Use the test version below.</p>
+            <p class="dl-kind">Test</p>
+            <a class="btn btn-play" href="https://testflight.apple.com/join/Mr3GrZBw"><span><small>Needs the free TestFlight app</small><span class="big">Join the iPhone test</span></span></a>
             <p class="dl-note">Test version 1.1: × ÷ + − modes, family scores saved to Google.</p>
           </div>
+
           <div class="dl-card">
-            <h3>Android</h3>
-            <span class="btn btn-ghost btn-off" aria-disabled="true"><span><small>Coming soon to</small><span class="big">Google Play</span></span></span>
-            <p class="dl-status">Waiting for Google's approval.</p>
-            <a class="btn btn-play" href="android/TimesTables.apk" download><span><small>Direct download for Android phones</small><span class="big">Download the Android app</span></span></a>
-            <p class="dl-note">After it downloads, tap it and allow "Install unknown apps" when Android asks. Version 1.1.</p>
+            <h3>📒 iPad</h3>
+            <p class="dl-kind">Live</p>
+            <a class="btn btn-gold appstore is-soon" href="https://apps.apple.com/app/id6818310411"><span><small>Coming soon to the</small><span class="big">App Store</span></span></a>
+            <p class="dl-status appstore-status">Version 1.0 is waiting for Apple's review. Use the test version below.</p>
+            <p class="dl-kind">Test</p>
+            <a class="btn btn-play" href="https://testflight.apple.com/join/Mr3GrZBw"><span><small>Same test, on the iPad</small><span class="big">Join the iPad test</span></span></a>
+            <p class="dl-note">One app covers iPhone and iPad. Install TestFlight on the iPad and open this same link there.</p>
           </div>
+
           <div class="dl-card">
-            <h3>Chromebook &amp; computer</h3>
-            <a class="btn btn-play" href="play/"><span><small>Free, no download</small><span class="big">▶ Play in your browser</span></span></a>
-            <p class="dl-note">Works in Chrome, Edge and Safari. Always the newest version.</p>
+            <h3>🤖 Android</h3>
+            <p class="dl-kind">Live</p>
+            <a class="btn btn-play" href="android/TimesTables.apk" download><span><small>Direct download, version 1.1</small><span class="big">Download the Android app</span></span></a>
+            <p class="dl-note">Tap the file after it downloads and allow "Install unknown apps" when Android asks. Coming soon to Google Play.</p>
+            <p class="dl-kind">Test</p>
+            <a class="btn btn-gold" href="android/beta-5091f960db63/TimesTables-native.apk" download><span><small>New full Android app</small><span class="big">Download the Android test</span></span></a>
+            <p class="dl-note">The real app, not the website in a wrapper: Sunny's own voice says names and tips. She downloads once on first launch, about 390 MB, so use Wi-Fi.</p>
           </div>
+
         </div>
       </div>
     </div>
@@ -224,8 +245,9 @@
     // Once Apple approves the app, Apple's lookup finds it and the "waiting" note goes away.
     function appStoreLookup(d) {
       if (d && d.resultCount > 0) {
-        var s = document.getElementById('appstore-status');
-        if (s) s.textContent = 'Version ' + d.results[0].version + ' is live.';
+        document.querySelectorAll('.appstore-status').forEach(function (s) {
+          s.textContent = 'Version ' + d.results[0].version + ' is live on the App Store.';
+        });
         document.querySelectorAll('.appstore').forEach(function (a) {
           a.classList.remove('is-soon');
           a.querySelector('small').textContent = 'Free on the';
