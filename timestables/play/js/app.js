@@ -3,7 +3,7 @@ import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKe
 import * as Coach from './coach.js';
 import { tipFor } from './tips.js';
 import * as Voice from './voice.js?v=14';
-import * as Cloud from './cloud.js';
+import * as Cloud from './cloud.js?v=2';
 
 const $ = id => document.getElementById(id);
 const AVATARS = ['🦖', '🦅', '🐙', '🦊', '🐉', '🦈', '🐯', '🚀', '🦄', '🐸', '🐼', '🦁', '🐵', '🐢', '🦉', '🐬'];

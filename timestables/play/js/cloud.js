@@ -10,7 +10,8 @@ export const available = !!firebaseConfig;
 const V = '10.12.2';
 let fb = null; // { auth, db, mods }
 
-const PUBLIC_DOMAINS = ['gmail.com', 'googlemail.com'];
+// Personal email domains never get a shared school leaderboard (the database rules agree).
+const PUBLIC_DOMAINS = ['gmail.com', 'googlemail.com', 'privaterelay.appleid.com', 'icloud.com', 'me.com', 'mac.com'];
 export const schoolOf = user => {
   const d = user?.email?.split('@')[1]?.toLowerCase();
   return d && !PUBLIC_DOMAINS.includes(d) ? d : null;
