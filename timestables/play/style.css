@@ -138,10 +138,9 @@ dialog {
   left: 50%;
   right: auto;
   transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
 }
-/* A closed dialog must stay hidden: the display: flex above would otherwise keep it on screen. */
+dialog[open] { display: block; }
+/* A closed dialog must stay hidden, whatever else sets its display. */
 dialog:not([open]) { display: none !important; }
 /* Top bar in the add-player box: stays put while the rest scrolls. */
 .dlgbar { position: sticky; top: -20px; z-index: 2; margin: -20px -20px 0; padding: 14px 16px; background: var(--bg);
@@ -157,8 +156,10 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
   gap: 14px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  min-height: 0;
-  max-height: 100%;
+  /* The scrolling box sizes itself to the screen. (A percentage of the dialog made iPhone and iPad
+     Safari collapse the box to a sliver, pushing the title and the Done button off screen.) */
+  max-height: calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
 }
 #btnHear { width: 100%; min-height: 52px; font-size: 20px; }
 #hearStatus { min-height: 1.2em; margin: -6px 0 0; text-align: center; }
