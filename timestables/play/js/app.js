@@ -535,6 +535,9 @@ async function askOne(g, i) {
   $('problem').textContent = q.text; $('problem').className = 'problem';
   $('badge').innerHTML = '&' + 'nbsp;'; $('tip').hidden = true; $('heard').innerHTML = '&' + 'nbsp;'; $('entry').textContent = '?';
   feedback(null);
+  // From asking until it's answered: a ✓ (or Enter) while the question is still being read counts
+  // right away instead of being ignored, and digits typed early aren't wiped (same as the apps).
+  g.entry = ''; g.awaiting = true;
   const it = findItem(g.op, q.key);
   const chance = it ? Coach.pCorrect(skill(pid, g.op), memories[g.op][pid]?.[q.key], it) : 0.5;
   const trick = tipFor(q);
@@ -546,6 +549,9 @@ async function askOne(g, i) {
   // Time spent answering so far. Pause, Repeat and a do-over don't restart the clock: it picks
   // up where it left off, so pausing can't buy a fresh countdown.
   const clock = skill(pid, g.op).clock * q.clockScale;
+  // Set now, not only when the answer window opens: an answer typed while the question is still
+  // being read never opens it, and its points are measured on this clock.
+  g.listenSeconds = clock * (g.usingVoice ? 1 : 1.5);
   let tries = 0, result, elapsed = 0, used = 0, fresh = false, redone = false;
   for (;;) {
   for (;;) {
@@ -569,6 +575,7 @@ async function askOne(g, i) {
     if (result.type === 'nothing' && result.why === 'timeout' && ++tries < 2) { setMic('speaking'); await Voice.say(`I didn't hear that. ${q.spoken}?`); fresh = true; continue; }
     break;
   }
+  g.awaiting = false;
 
   // Kept so a misheard answer can be taken back (see below).
   const before = { asked: p.asked, streak: p.streak, misses: [...p.misses], retry: [...p.retry], retried: new Set(p.retried) };
@@ -618,6 +625,7 @@ async function askOne(g, i) {
       saveProgress(g.op);
       feedback(null); $('tip').hidden = true; $('badge').innerHTML = '&' + 'nbsp;'; $('heard').innerHTML = '&' + 'nbsp;';
       $('problem').textContent = q.text; $('problem').className = 'problem';
+      g.entry = ''; $('entry').textContent = '?'; g.awaiting = true;
       renderScores();
       setMic('speaking');
       await Voice.say(`Okay, try again. ${q.spoken}?`);
@@ -668,11 +676,11 @@ async function getAnswer(g, q, clock, used = 0, fresh = false) {
         onHeard: t => { $('heard').textContent = t ? `“${t}”` : ' '; } });
     }
     setMic('tap');
-    $('entry').textContent = '?';
+    $('entry').textContent = g.entry || '?';
     return await new Promise(resolve => {
       const timer = setTimeout(() => done({ type: 'nothing', why: 'timeout' }), window * 1000);
       const done = r => { clearTimeout(timer); g.tapResolve = null; resolve(r); };
-      g.tapResolve = done; g.entry = '';
+      g.tapResolve = done;
     });
   } finally { stopTimer(); }
 }
@@ -694,7 +702,10 @@ function record(g, pid, q, correct, secs) {
 function keypad(k) {
   const g = G; if (!g) return;
   if (k === '⌫') g.entry = (g.entry ?? '').slice(0, -1);
-  else if (k === '✓') { if (g.entry && g.tapResolve) { const v = parseInt(g.entry, 10); g.entry = ''; g.tapResolve({ type: 'number', value: v }); } }
+  else if (k === '✓') {
+    if (g.entry && g.tapResolve) { const v = parseInt(g.entry, 10); g.entry = ''; g.tapResolve({ type: 'number', value: v }); }
+    else if (g.entry && g.awaiting) { const v = parseInt(g.entry, 10); g.entry = ''; interrupt({ type: 'number', value: v }); } // typed while the question was read
+  }
   else if ((g.entry ?? '').length < 3) g.entry = (g.entry ?? '') + k;
   $('entry').textContent = g.entry || '?';
 }
@@ -762,7 +773,8 @@ async function finish(g, early) {
     let d = `${p.right} of ${p.asked} right (${pct}%) · best streak ${p.best}`;
     if (p.asked >= 4) d += pct >= 95 ? '<br>🚀 Too easy! The coach will push harder.' : pct >= 75 ? '<br>🎯 Right in the learning zone' : '<br>🧗 Tough round. The coach will ease up a bit.';
     for (const m of p.milestones) d += `<br>⭐ ${esc(m)}`;
-    if (p.fastest) d += `<br>⚡ fastest: ${p.fastest.q.text} in ${p.fastest.secs.toFixed(1)}s`;
+    // An answer tapped before the question finished has no time on the clock yet: say so, not "0.0s".
+    if (p.fastest) d += `<br>⚡ fastest: ${p.fastest.q.text} ${p.fastest.secs < 0.05 ? 'before the question was even finished!' : `in ${p.fastest.secs.toFixed(1)}s`}`;
     return `<div class="rowItem"><div class="av">${p.c.avatar}</div><div class="info"><b>${i === 0 && ranked.length > 1 && p.points > ranked[1].points ? '🏆 ' : ''}${esc(p.c.name)}</b><span>${d}</span></div><div class="score"><b>${p.points}</b></div></div>`;
   }).join('');
   $('practice').innerHTML = '<div class="sectionTitle">Practice these</div>' + ranked.map(p => {
