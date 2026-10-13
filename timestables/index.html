@@ -207,7 +207,7 @@
             <h3>📱 iPhone</h3>
             <p class="dl-kind">Live</p>
             <a class="btn btn-gold appstore" href="https://apps.apple.com/us/app/times-table-road-trip/id6818310411"><span><small>Free on the</small><span class="big">App Store</span></span></a>
-            <p class="dl-status appstore-status">Version 1.0 is waiting for Apple's review. Use the test version below.</p>
+            <p class="dl-status appstore-status">Version 1.0 is live on the App Store.</p>
             <p class="dl-kind">Test</p>
             <a class="btn btn-play" href="https://testflight.apple.com/join/Mr3GrZBw"><span><small>Needs the free TestFlight app</small><span class="big">Join the iPhone test</span></span></a>
             <p class="dl-note">The newest build Apple has approved for testing. Version 1.1 adds ÷ + − modes and family scores saved online; it reaches this link as soon as Apple finishes its beta review.</p>
@@ -217,7 +217,7 @@
             <h3>📒 iPad</h3>
             <p class="dl-kind">Live</p>
             <a class="btn btn-gold appstore" href="https://apps.apple.com/us/app/times-table-road-trip/id6818310411"><span><small>Free on the</small><span class="big">App Store</span></span></a>
-            <p class="dl-status appstore-status">Version 1.0 is waiting for Apple's review. Use the test version below.</p>
+            <p class="dl-status appstore-status">Version 1.0 is live on the App Store.</p>
             <p class="dl-kind">Test</p>
             <a class="btn btn-play" href="https://testflight.apple.com/join/Mr3GrZBw"><span><small>Same test, on the iPad</small><span class="big">Join the iPad test</span></span></a>
             <p class="dl-note">One app covers iPhone and iPad. Install TestFlight on the iPad and open this same link there.</p>
@@ -238,21 +238,6 @@
     </div>
   </section>
 
-  <script>
-    // Once Apple approves the app, Apple's lookup finds it and the "waiting" note goes away.
-    function appStoreLookup(d) {
-      if (d && d.resultCount > 0) {
-        document.querySelectorAll('.appstore-status').forEach(function (s) {
-          s.textContent = 'Version ' + d.results[0].version + ' is live on the App Store.';
-        });
-        document.querySelectorAll('.appstore').forEach(function (a) {
-          a.classList.remove('is-soon');
-          a.querySelector('small').textContent = 'Free on the';
-        });
-      }
-    }
-  </script>
-  <script src="https://itunes.apple.com/lookup?id=6818310411&callback=appStoreLookup" async></script>
 
   <footer>
     <div class="wrap row">
