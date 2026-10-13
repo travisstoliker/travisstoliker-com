@@ -8,9 +8,13 @@ export const canListen = !!SR;
 export const canSpeak = 'speechSynthesis' in window;
 /** iPhone and iPad (every browser there, Chrome included, uses Safari's engine). */
 export const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-/** Every device speaks with the recorded "Sunny" voice (the iPhone app's voice). If the
- *  recordings can't load, Android, Chromebooks and computers fall back to their built-in voice. */
-export const useClips = true;
+/** Every device speaks with the recorded "Sunny" voice (the iPhone app's voice), as long as the
+ *  browser can play the recordings (AAC audio in .m4a; every iPhone, iPad, Chrome, Edge and Safari
+ *  can). Browsers that can't, and any line whose recordings don't play, use the built-in voice. */
+const clipsPlayable = (() => {
+  try { return !!document.createElement('audio').canPlayType('audio/mp4; codecs="mp4a.40.2"'); } catch { return false; }
+})();
+export const useClips = isIOS || clipsPlayable;
 
 let voice = null, rate = 1, chosenId = null, avoidNetwork = false;
 export function voices() {
@@ -146,7 +150,8 @@ async function sayIOS(text) {
     if (token !== playToken) break; // something newer started
     if (await playClip(id, token)) any = true;
   }
-  return any || !ids.length;
+  // Fine if something played, the line has no recordings (names, tips), or it was stopped on purpose.
+  return any || !ids.length || token !== playToken;
 }
 
 export function stopTalking() {
@@ -195,7 +200,8 @@ export async function say(text, { slower = false } = {}) {
   if (useClips) {
     primeIosAudio(); // still inside the tap when called from one
     const m = await loadManifest();
-    if (Object.keys(m).length) return (await sayIOS(text)) ? 'Done.' : 'No sound. Try again.';
+    if (Object.keys(m).length && await sayIOS(text)) return 'Done.';
+    // The recordings didn't play here: say it with the built-in voice instead.
   }
   if (!canSpeak) return 'No sound. Try again.';
   if (!voice) voice = bestVoice(chosenId);
