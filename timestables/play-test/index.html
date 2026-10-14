@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <main id="app">
@@ -99,6 +99,14 @@
     <input id="dlgName" maxlength="20" placeholder="Name" autocomplete="off" enterkeyhint="done">
     <p class="muted small center">Pick an animal</p>
     <div class="animals" id="animals"></div>
+    <div class="globalBox" id="globalBox" hidden>
+      <label class="check"><input type="checkbox" id="dlgGlobal"> Show on the 🌎 global leaderboard</label>
+      <div id="globalDetails" hidden>
+        <label class="small">First letter of their last name <input id="dlgInitial" maxlength="1" autocomplete="off" autocapitalize="characters" class="initial"></label>
+        <p id="globalPreview" class="small muted"></p>
+        <p class="tiny muted">Only their first name and last initial, their animal and their points are shown, and only to people signed in to the game. Anyone can report a name. You can turn this off any time.</p>
+      </div>
+    </div>
     <button value="delete" class="danger" id="dlgDelete" hidden>Delete player…</button>
   </form>
 </dialog>
@@ -134,6 +142,6 @@
 </dialog>
 
 <button id="soundBtn" class="soundBtn" hidden>🔈 Tap here to turn on the sound</button>
-<script type="module" src="js/app.js?v=17"></script>
+<script type="module" src="js/app.js?v=18"></script>
 </body>
 </html>

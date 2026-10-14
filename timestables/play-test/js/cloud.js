@@ -4,11 +4,16 @@
 // - Players with a school Google account (not gmail.com) also appear on their school's
 //   leaderboard as first name + last initial ("Lane S."). Only people signed in with the
 //   same school's accounts can see it.
+// - A parent signed in with the family account can put a player on the global leaderboard
+//   (opt-in, per player): "Lane S.", their animal and points. Anyone signed in can see it.
 import { firebaseConfig } from './firebase-config.js';
 
 export const available = !!firebaseConfig;
 const V = '10.12.2';
 let fb = null; // { auth, db, mods }
+// Tests only: ?firebaseEmulator=127.0.0.1 talks to Firebase's local emulator (made-up accounts,
+// nothing real). It only ever points this browser at its own computer.
+const EMU = (() => { try { return new URLSearchParams(location.search).get('firebaseEmulator'); } catch { return null; } })();
 
 // Personal email domains never get a shared school leaderboard (the database rules agree).
 const PUBLIC_DOMAINS = ['gmail.com', 'googlemail.com', 'privaterelay.appleid.com', 'icloud.com', 'me.com', 'mac.com'];
@@ -29,8 +34,12 @@ async function load() {
     import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
     import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
   ]);
-  const a = app.initializeApp(firebaseConfig);
+  const a = app.initializeApp(EMU ? { ...firebaseConfig, projectId: 'demo-ttrt' } : firebaseConfig);
   fb = { auth: auth.getAuth(a), db: store.getFirestore(a), A: auth, S: store };
+  if (EMU) {
+    auth.connectAuthEmulator(fb.auth, `http://${EMU}:9099`, { disableWarnings: true });
+    store.connectFirestoreEmulator(fb.db, EMU, 8080);
+  }
   return fb;
 }
 
@@ -44,6 +53,13 @@ export async function signIn() {
   const p = new A.GoogleAuthProvider();
   p.setCustomParameters({ prompt: 'select_account' });
   return (await A.signInWithPopup(auth, p)).user;
+}
+/** Tests only (emulator): sign in as a made-up Google account. */
+export async function testSignIn(email, name) {
+  if (!EMU) throw new Error('emulator only');
+  const { auth, A } = await load();
+  const cred = A.GoogleAuthProvider.credential(JSON.stringify({ sub: email, email, email_verified: true, name }));
+  return (await A.signInWithCredential(auth, cred)).user;
 }
 export async function signOut() { const { auth, A } = await load(); await A.signOut(auth); }
 
@@ -105,4 +121,39 @@ export async function loadBoard(user) {
   const { db, S } = await load();
   const snap = await S.getDocs(S.collection(db, 'boards', school, 'players'));
   return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+}
+
+// MARK: Global leaderboard (opt-in per player, by a parent signed in with the family account)
+
+/** "<family account id>_<player id>": the database rules let only that account write it. */
+export const globalRowId = (user, playerId) => `${user.uid}_${playerId}`;
+
+export async function saveGlobalRow(user, playerId, row) {
+  const { db, S } = await load();
+  await S.setDoc(S.doc(db, 'global', globalRowId(user, playerId)), { ...row, owner: user.uid, updated: S.serverTimestamp() });
+}
+
+export async function deleteGlobalRow(user, playerId) {
+  const { db, S } = await load();
+  await S.deleteDoc(S.doc(db, 'global', globalRowId(user, playerId)));
+}
+
+/**
+ * Rows for one board: this week's (by week id), or all time for one mode (highest first). For
+ * "All modes", the most recently updated rows; the page adds their modes up.
+ */
+export async function loadGlobal(op, weekId) {
+  const { db, S } = await load();
+  const col = S.collection(db, 'global');
+  const q = weekId ? S.query(col, S.where('week.id', '==', weekId), S.limit(300))
+    : op ? S.query(col, S.orderBy(`points.${op}`, 'desc'), S.limit(100))
+    : S.query(col, S.orderBy('updated', 'desc'), S.limit(300));
+  const snap = await S.getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/** "Report" on a row: Travis reads these in the Firebase console and takes the row down. */
+export async function reportRow(user, row) {
+  const { db, S } = await load();
+  await S.addDoc(S.collection(db, 'reports'), { row: row.id, name: String(row.name ?? '').slice(0, 40), reason: 'name', reporter: user.uid, at: S.serverTimestamp() });
 }
