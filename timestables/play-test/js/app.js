@@ -433,9 +433,10 @@ function editPlayer(p) {
 function showGlobalName() {
   const on = $('dlgGlobal').checked, n = globalName($('dlgName').value, $('dlgInitial').value);
   $('globalDetails').hidden = !on;
+  const noName = !$('dlgName').value.trim(), noInitial = !$('dlgInitial').value.trim();
   $('globalPreview').textContent = !on ? '' : n ? `Shows as “${n}” with their animal and points, to anyone signed in to the game.`
-    : !$('dlgInitial').value.trim() ? 'Add the first letter of their last name.' : 'That name can’t go on the world leaderboard. Use letters A to Z, or another name.';
-  $('globalPreview').className = 'small ' + (on && !n && $('dlgInitial').value.trim() ? 'bad' : 'muted');
+    : noName ? 'Type their name above.' : noInitial ? 'Add the first letter of their last name.' : 'That name can’t go on the world leaderboard. Use letters A to Z, or another name.';
+  $('globalPreview').className = 'small ' + (on && !n && !noName && !noInitial ? 'bad' : 'muted');
 }
 for (const id of ['dlgGlobal', 'dlgInitial', 'dlgName']) $(id).addEventListener('input', showGlobalName);
 function drawAnimals() {
