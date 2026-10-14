@@ -3,7 +3,7 @@ import { OPS, OP, MIX, MODES, storeKey, findItem, groups, question, KIND_NAME, I
 import * as Coach from './coach.js?v=2';
 import { tipFor } from './tips.js';
 import * as Voice from './voice.js?v=14';
-import * as Cloud from './cloud.js?v=3';
+import * as Cloud from './cloud.js?v=4';
 import { globalName } from './global-name.js?v=1';
 
 const $ = id => document.getElementById(id);

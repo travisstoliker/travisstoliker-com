@@ -27,8 +27,14 @@ export function shortName(user) {
   return parts.length > 1 ? `${parts[0]} ${parts.at(-1)[0].toUpperCase()}.` : parts[0];
 }
 
-async function load() {
-  if (fb || !available) return fb;
+// One shared load: sign-in can start while the page's own start-up load is still running, and
+// two loads at once would start Firebase twice (the second fails and its caller hears nothing).
+let loading = null;
+function load() {
+  if (fb || !available) return Promise.resolve(fb);
+  return (loading ??= loadOnce().catch(e => { loading = null; throw e; }));
+}
+async function loadOnce() {
   const [app, auth, store] = await Promise.all([
     import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
     import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
