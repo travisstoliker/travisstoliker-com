@@ -8,6 +8,11 @@ export const OP = {
   add: { symbol: '+', word: 'plus', label: '+ Plus', noun: 'addition', max: 99, commutative: true },
   sub: { symbol: '−', word: 'minus', label: '− Minus', noun: 'subtraction', max: 99, commutative: false },
 };
+// Mix: one round deals questions from all four. It's a mode (its own leaderboard and saved
+// rounds), not a kind of fact: every Mix answer trains that operation's own coach and chart.
+export const MIX = 'mix';
+export const MODES = [...OPS, MIX];
+OP.mix = { symbol: '🔀', word: 'mixed', label: '🔀 Mix', noun: 'mixed', max: 144, commutative: false };
 // Same save keys as the app: multiplication keeps the original ones.
 export const storeKey = (op, base) => (op === 'mul' ? base : `${base}.${op}`);
 // Dates are seconds since 2001-01-01, as the iPhone app saves them, so data moves between them.

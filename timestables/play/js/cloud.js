@@ -71,7 +71,7 @@ export async function loadFamily(uid) {
   if (!fam.exists()) return null;
   const J = (v, d) => { try { return v ? JSON.parse(v) : d; } catch { return d; } };
   const f = fam.data(), data = {};
-  for (const op of ['mul', 'div', 'add', 'sub']) {
+  for (const op of ['mul', 'div', 'add', 'sub', 'mix']) { // mix: Mix rounds' results only
     const d = await S.getDoc(S.doc(db, 'families', uid, 'data', op));
     const x = d.exists() ? d.data() : {};
     data[op] = { memory: J(x.memory, {}), skills: J(x.skills, {}), results: J(x.results, []) };
