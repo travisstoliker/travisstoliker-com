@@ -3,7 +3,8 @@ import { OPS, OP, MIX, MODES, storeKey, findItem, groups, question, KIND_NAME, I
 import * as Coach from './coach.js?v=2';
 import { tipFor } from './tips.js';
 import * as Voice from './voice.js?v=14';
-import * as Cloud from './cloud.js?v=2';
+import * as Cloud from './cloud.js?v=3';
+import { globalName } from './global-name.js?v=1';
 
 const $ = id => document.getElementById(id);
 const AVATARS = ['🦖', '🦅', '🐙', '🦊', '🐉', '🦈', '🐯', '🚀', '🦄', '🐸', '🐼', '🦁', '🐵', '🐢', '🦉', '🐬'];
@@ -113,6 +114,44 @@ async function pushFamily() {
   data[MIX] = { memory: {}, skills: {}, results: resultSets[MIX] };
   await Cloud.saveFamily(user, { roster: settings.players.filter(p => !(p.account && p.id === user.uid)),
     knownNames: load('knownNames', {}), deleted: load('deletedPlayers', []), data });
+  await syncGlobal();
+}
+
+/** A player's point totals for the leaderboards: all time and this week, per mode. */
+function totals(pid) {
+  const points = {}, week = { id: weekId(Date.now()) };
+  for (const op of MODES) {
+    const mine = resultSets[op].filter(r => r.player === pid);
+    points[op] = mine.reduce((t, r) => t + r.points, 0);
+    week[op] = mine.filter(r => r.date >= weekStart()).reduce((t, r) => t + r.points, 0);
+  }
+  return { points, week };
+}
+
+// The global leaderboard: players a parent turned it on for get a row ("Lane S.", animal,
+// points); turning it off takes the row down. Only with the family account (a parent's).
+// globalBoard: true = on, false = just turned off (row still to take down), unset = never on.
+let globalOff = false; // the database doesn't have the global leaderboard switched on yet
+async function syncGlobal() {
+  if (!user || !familyMode) return;
+  let changed = false;
+  for (const p of settings.players) {
+    try {
+      if (p.globalBoard === true) {
+        const name = globalName(p.name, p.lastInitial);
+        if (name) await Cloud.saveGlobalRow(user, p.id, { name, avatar: p.avatar, ...totals(p.id) });
+      } else if (p.globalBoard === false) {
+        await Cloud.deleteGlobalRow(user, p.id);
+        delete p.globalBoard; changed = true;
+      }
+      globalOff = false;
+    } catch (e) {
+      if (e?.code === 'permission-denied') globalOff = true;
+      console.warn('global leaderboard', e?.code ?? e);
+    }
+  }
+  if (changed) saveSettings();
+  globalRows = null; // fetch fresh totals next time the board shows
 }
 
 async function signedIn(u) {
@@ -260,7 +299,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&' + 'amp;', 
 
 // MARK: Leaderboard
 
-let boardScope = 'family', boardOp = null, boardWeek = false, schoolRows = null; // All time first: "This week" looked like a reset
+let boardScope = 'family', boardOp = null, boardWeek = false, schoolRows = null, globalRows = null, globalKey = ''; // All time first: "This week" looked like a reset
 
 function familyRows(ops) {
   const start = weekStart();
@@ -275,8 +314,37 @@ function familyRows(ops) {
   }).sort((a, b) => b.points - a.points || b.auto - a.auto);
 }
 
+const reported = () => new Set(load('reportedRows', []));
+function globalBoardRows(ops) {
+  const wk = weekId(Date.now()), hide = reported();
+  return (globalRows ?? [])
+    .filter(r => !hide.has(r.id))
+    .map(r => ({ id: r.id, name: r.name, avatar: r.avatar, me: r.owner === user?.uid,
+      points: ops.reduce((t, o) => t + (boardWeek ? (r.week?.id === wk ? r.week?.[o] ?? 0 : 0) : r.points?.[o] ?? 0), 0) }))
+    .filter(r => r.points > 0)
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 50);
+}
+
+async function fetchGlobal() {
+  const key = `${boardOp}|${boardWeek}`;
+  if (globalRows && globalKey === key) return;
+  globalKey = key;
+  try { globalRows = await Cloud.loadGlobal(boardOp, boardWeek ? weekId(Date.now()) : null); globalOff = false; }
+  catch (e) { globalRows = []; if (e?.code === 'permission-denied') globalOff = true; console.warn('global leaderboard', e?.code ?? e); }
+}
+
+async function report(r) {
+  if (!user || !confirm(`Report “${r.name}”? If the name isn’t OK for kids, we’ll take it down. It disappears from your board now.`)) return;
+  save('reportedRows', [...reported(), r.id]);
+  try { await Cloud.reportRow(user, r); notice('Thanks for telling us. We’ll check it.'); }
+  catch { notice('Couldn’t send the report just now. It’s hidden on this computer; you can also email privacy@agrowthfactory.com.'); }
+  renderBoard();
+}
+
 function boardRows(ops) {
   if (boardScope === 'family') return familyRows(ops);
+  if (boardScope === 'global') return globalBoardRows(ops);
   const wk = weekId(Date.now());
   return (schoolRows ?? [])
     .filter(r => boardScope === 'school' || (settings.grade && r.grade === settings.grade))
@@ -293,15 +361,18 @@ async function renderBoard() {
   el.hidden = false;
   if (boardOp === undefined || (boardOp !== null && !MODES.includes(boardOp))) boardOp = settings.mode;
   const school = user && Cloud.schoolOf(user);
-  if (!school) boardScope = 'family';
+  if (!user || (!school && (boardScope === 'school' || boardScope === 'grade'))) boardScope = 'family';
   const ops = boardOp ? [boardOp] : MODES;
   el.innerHTML = `<h3>🏆 Leaderboard <small>${boardOp ? OP[boardOp].noun.replace(/^./, c => c.toUpperCase()) : 'All modes'}</small></h3>`;
-  if (school) {
+  if (user) {
     const s = document.createElement('div'); s.className = 'segs';
-    segs(s, [['family', '🏠 Family'], ['school', '🏫 School'], ['grade', settings.grade ? `Grade ${settings.grade}` : 'Grade']], boardScope, async v => {
+    const scopes = [['family', '🏠 Family'], ['global', '🌎 World']];
+    if (school) scopes.push(['school', '🏫 School'], ['grade', settings.grade ? `Grade ${settings.grade}` : 'Grade']);
+    segs(s, scopes, boardScope, async v => {
       boardScope = v;
       if (v === 'grade' && !settings.grade) { openSettings(); return; }
-      if (v !== 'family') schoolRows = await Cloud.loadBoard(user).catch(() => []);
+      if (v === 'school' || v === 'grade') schoolRows = await Cloud.loadBoard(user).catch(() => []);
+      if (v === 'global') globalRows = null;
       renderBoard();
     });
     el.append(s);
@@ -311,11 +382,14 @@ async function renderBoard() {
   const w = document.createElement('div'); w.className = 'segs';
   segs(w, [[true, 'This week'], [false, 'All time']], boardWeek, v => { boardWeek = v; renderBoard(); });
   el.append(m, w);
-  if (boardScope !== 'family' && schoolRows === null) schoolRows = await Cloud.loadBoard(user).catch(() => []);
+  if ((boardScope === 'school' || boardScope === 'grade') && schoolRows === null) schoolRows = await Cloud.loadBoard(user).catch(() => []);
+  if (boardScope === 'global') await fetchGlobal();
   const rows = boardRows(ops);
   if (!rows.length || rows.every(r => !r.points)) {
     const p = document.createElement('p'); p.className = 'muted small';
     p.textContent = boardScope === 'family' ? (boardWeek ? 'No rounds yet this week. Finish a round to get on the board!' : 'Finish a round to get on the board!')
+      : boardScope === 'global' ? (globalOff ? 'The global leaderboard isn’t switched on yet. Check back soon!'
+        : `No one is on the world leaderboard${boardWeek ? ' this week' : ''} yet. ${familyMode ? 'Turn it on for a player: tap ✏️ on their picture.' : 'A parent can turn it on for a player with the family account.'}`)
       : 'No one from your school has played yet. Be the first!';
     el.append(p);
     if (boardScope === 'family') return;
@@ -326,7 +400,13 @@ async function renderBoard() {
     const detail = boardScope === 'family'
       ? (r.rounds ? [`${r.rounds} round${r.rounds === 1 ? '' : 's'}`, r.wins ? `🏆 ${r.wins}` : '', `${r.percent}% right`, `✅ ${r.auto} mastered`].filter(Boolean).join(' · ') : `No rounds ${boardWeek ? 'this week' : 'yet'} · ✅ ${r.auto} mastered`)
       : '';
-    d.innerHTML = `<div class="medal">${r.points ? (['🥇', '🥈', '🥉'][i] ?? i + 1) : '–'}</div><div class="av">${r.avatar}</div><div class="info"><b>${esc(r.name)}</b><span>${detail}</span></div><div class="score"><b>${r.points.toLocaleString()}</b><span>points</span></div>`;
+    d.innerHTML = `<div class="medal">${r.points ? (['🥇', '🥈', '🥉'][i] ?? i + 1) : '–'}</div><div class="av">${esc(r.avatar)}</div><div class="info"><b>${esc(r.name)}</b><span>${boardScope === 'global' && r.me ? 'Your family' : detail}</span></div><div class="score"><b>${r.points.toLocaleString()}</b><span>points</span></div>`;
+    if (boardScope === 'global' && !r.me) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'report'; b.textContent = '⚑';
+      b.title = b.ariaLabel = `Report ${r.name}`;
+      b.onclick = () => report(r);
+      d.append(b);
+    }
     el.append(d);
   });
 }
@@ -340,11 +420,24 @@ function editPlayer(p) {
   $('dlgName').value = p?.name ?? '';
   dlgAvatar = p?.avatar ?? AVATARS[family().length % AVATARS.length];
   $('dlgDelete').hidden = !p || p.account;
+  // The global leaderboard is a parent's choice, so it's only offered with the family account.
+  $('globalBox').hidden = !(user && familyMode) || !!p?.account;
+  $('dlgGlobal').checked = p?.globalBoard === true;
+  $('dlgInitial').value = p?.lastInitial ?? '';
+  showGlobalName();
   drawAnimals();
   $('playerDlg').showModal();
   // On phones, don't pop the keyboard right away: it would cover the animals.
   if (!p && !matchMedia('(pointer: coarse)').matches) $('dlgName').focus();
 }
+function showGlobalName() {
+  const on = $('dlgGlobal').checked, n = globalName($('dlgName').value, $('dlgInitial').value);
+  $('globalDetails').hidden = !on;
+  $('globalPreview').textContent = !on ? '' : n ? `Shows as “${n}” with their animal and points, to anyone signed in to the game.`
+    : !$('dlgInitial').value.trim() ? 'Add the first letter of their last name.' : 'That name can’t go on the global leaderboard. Use letters A to Z, or another name.';
+  $('globalPreview').className = 'small ' + (on && !n && $('dlgInitial').value.trim() ? 'bad' : 'muted');
+}
+for (const id of ['dlgGlobal', 'dlgInitial', 'dlgName']) $(id).addEventListener('input', showGlobalName);
 function drawAnimals() {
   $('dlgAvatar').textContent = dlgAvatar;
   const g = $('animals'); g.innerHTML = '';
@@ -361,10 +454,17 @@ function drawAnimals() {
 function finishPlayer(v) {
   const name = $('dlgName').value.trim();
   if (v === 'save' && name) {
-    if (editing) { editing.name = name; editing.avatar = dlgAvatar; }
-    else settings.players.push({ id: uuid(), name, avatar: dlgAvatar, playing: playingNow().length < MAX_PLAYERS });
+    const p = editing ?? { id: uuid(), playing: playingNow().length < MAX_PLAYERS };
+    p.name = name; p.avatar = dlgAvatar;
+    if (!$('globalBox').hidden) {
+      const on = $('dlgGlobal').checked;
+      p.lastInitial = $('dlgInitial').value.trim().slice(0, 1).toUpperCase() || undefined;
+      if (on) p.globalBoard = true; else if (p.globalBoard === true) p.globalBoard = false; // false: take the row down
+    }
+    if (!editing) settings.players.push(p);
     saveSettings(); if (editing?.account) pushAccount().catch(() => {});
   } else if (v === 'delete' && editing && confirm(`Delete ${editing.name} forever? This erases their scores and everything the coach learned about them.`)) {
+    if (editing.globalBoard !== undefined && user && familyMode) Cloud.deleteGlobalRow(user, editing.id).catch(() => {});
     settings.players = settings.players.filter(p => p.id !== editing.id);
     save('deletedPlayers', [...new Set([...load('deletedPlayers', []), editing.id])]); // so the family's other devices drop them too
     for (const op of OPS) { delete memories[op][editing.id]; delete skillSets[op][editing.id]; resultSets[op] = resultSets[op].filter(r => r.player !== editing.id); saveProgress(op); }
@@ -380,6 +480,8 @@ playerForm.addEventListener('submit', e => {
   e.preventDefault();
   const v = e.submitter?.value || 'save'; // Return on the keyboard counts as Save
   if (v === 'save' && !$('dlgName').value.trim()) { $('dlgName').focus(); return; } // a name is needed
+  // Turning on the global leaderboard needs a name it can show.
+  if (v === 'save' && !$('globalBox').hidden && $('dlgGlobal').checked && !globalName($('dlgName').value, $('dlgInitial').value)) { $('dlgInitial').focus(); showGlobalName(); return; }
   try { $('playerDlg').close(v); } catch {}
   finishPlayer(v);
 });
@@ -911,4 +1013,7 @@ Voice.setVoice(settings.voiceID, settings.voiceSpeed);
 boardOp = settings.mode;
 renderHome();
 Cloud.watchUser(signedIn).catch(() => {});
+// Tests only (with Firebase's local emulator): sign in as a made-up account, and peek at state.
+if (/[?&]firebaseEmulator=/.test(location.search)) window.__ttrt = { signIn: (email, name) => Cloud.testSignIn(email, name),
+  state: () => ({ user: user?.uid ?? null, familyMode, globalOff, players: settings.players }), sync: () => pushFamily() };
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
