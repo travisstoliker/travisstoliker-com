@@ -388,7 +388,7 @@ async function renderBoard() {
   if (!rows.length || rows.every(r => !r.points)) {
     const p = document.createElement('p'); p.className = 'muted small';
     p.textContent = boardScope === 'family' ? (boardWeek ? 'No rounds yet this week. Finish a round to get on the board!' : 'Finish a round to get on the board!')
-      : boardScope === 'global' ? (globalOff ? 'The global leaderboard isn’t switched on yet. Check back soon!'
+      : boardScope === 'global' ? (globalOff ? 'The world leaderboard isn’t switched on yet. Check back soon!'
         : `No one is on the world leaderboard${boardWeek ? ' this week' : ''} yet. ${familyMode ? 'Turn it on for a player: tap ✏️ on their picture.' : 'A parent can turn it on for a player with the family account.'}`)
       : 'No one from your school has played yet. Be the first!';
     el.append(p);
@@ -434,7 +434,7 @@ function showGlobalName() {
   const on = $('dlgGlobal').checked, n = globalName($('dlgName').value, $('dlgInitial').value);
   $('globalDetails').hidden = !on;
   $('globalPreview').textContent = !on ? '' : n ? `Shows as “${n}” with their animal and points, to anyone signed in to the game.`
-    : !$('dlgInitial').value.trim() ? 'Add the first letter of their last name.' : 'That name can’t go on the global leaderboard. Use letters A to Z, or another name.';
+    : !$('dlgInitial').value.trim() ? 'Add the first letter of their last name.' : 'That name can’t go on the world leaderboard. Use letters A to Z, or another name.';
   $('globalPreview').className = 'small ' + (on && !n && $('dlgInitial').value.trim() ? 'bad' : 'muted');
 }
 for (const id of ['dlgGlobal', 'dlgInitial', 'dlgName']) $(id).addEventListener('input', showGlobalName);
