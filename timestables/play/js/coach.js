@@ -1,6 +1,6 @@
 // The coach: rates each player, predicts their chance on every question, and asks ones
 // they'll get right about 80% of the time. A port of the app's Learning.swift.
-import { ITEMS, findItem, ask, logit, sigmoid, groups, nowRef } from './modes.js';
+import { ITEMS, findItem, ask, logit, sigmoid, groups, nowRef } from './modes.js?v=2';
 
 export const FAST_SECS = 3.5, TARGET = 0.80, MIN_CLOCK = 4, MAX_CLOCK = 12;
 export const newSkill = () => ({ theta: 0, numbers: {}, answers: 0, clock: 10 });

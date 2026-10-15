@@ -1,9 +1,10 @@
 // Times Table Road Trip on the web: same game, coach and modes as the iPhone app.
-import { OPS, OP, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js';
-import * as Coach from './coach.js';
+import { OPS, OP, MIX, MODES, storeKey, findItem, groups, question, KIND_NAME, ITEMS, factKey, nowRef } from './modes.js?v=2';
+import * as Coach from './coach.js?v=2';
 import { tipFor } from './tips.js';
 import * as Voice from './voice.js?v=14';
-import * as Cloud from './cloud.js?v=2';
+import * as Cloud from './cloud.js?v=4';
+import { globalName } from './global-name.js?v=1';
 
 const $ = id => document.getElementById(id);
 const AVATARS = ['🦖', '🦅', '🐙', '🦊', '🐉', '🦈', '🐯', '🚀', '🦄', '🐸', '🐼', '🦁', '🐵', '🐢', '🦉', '🐬'];
@@ -22,8 +23,12 @@ for (const op of OPS) {
   skillSets[op] = load(storeKey(op, 'skills'), {});
   resultSets[op] = load(storeKey(op, 'results'), []);
 }
+resultSets[MIX] = load(storeKey(MIX, 'results'), []); // Mix rounds: their own leaderboard (answers train each operation)
 const saveSettings = () => save('settings', settings);
-const saveProgress = op => { save(storeKey(op, 'memory'), memories[op]); save(storeKey(op, 'skills'), skillSets[op]); save(storeKey(op, 'results'), resultSets[op]); };
+const saveProgress = op => {
+  if (op !== MIX) { save(storeKey(op, 'memory'), memories[op]); save(storeKey(op, 'skills'), skillSets[op]); }
+  save(storeKey(op, 'results'), resultSets[op]);
+};
 const family = () => settings.players;
 const playingNow = () => settings.players.filter(p => p.playing);
 const uuid = () => crypto.randomUUID?.() ?? 'p' + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -94,6 +99,7 @@ async function joinFamily(u, fam) {
     for (const pid of deleted) { delete memories[op][pid]; delete skillSets[op][pid]; }
     saveProgress(op);
   }
+  if (fam.data[MIX]) { resultSets[MIX] = mergeResults(resultSets[MIX], fam.data[MIX].results).filter(r => !deleted.has(r.player)); saveProgress(MIX); }
   save('deletedPlayers', [...deleted]);
   save('knownNames', { ...fam.knownNames, ...load('knownNames', {}) });
   familyMode = true;
@@ -105,8 +111,47 @@ async function pushFamily() {
   if (!user || !familyMode) return;
   const data = {};
   for (const op of OPS) data[op] = { memory: memories[op], skills: skillSets[op], results: resultSets[op] };
+  data[MIX] = { memory: {}, skills: {}, results: resultSets[MIX] };
   await Cloud.saveFamily(user, { roster: settings.players.filter(p => !(p.account && p.id === user.uid)),
     knownNames: load('knownNames', {}), deleted: load('deletedPlayers', []), data });
+  await syncGlobal();
+}
+
+/** A player's point totals for the leaderboards: all time and this week, per mode. */
+function totals(pid) {
+  const points = {}, week = { id: weekId(Date.now()) };
+  for (const op of MODES) {
+    const mine = resultSets[op].filter(r => r.player === pid);
+    points[op] = mine.reduce((t, r) => t + r.points, 0);
+    week[op] = mine.filter(r => r.date >= weekStart()).reduce((t, r) => t + r.points, 0);
+  }
+  return { points, week };
+}
+
+// The global leaderboard: players a parent turned it on for get a row ("Lane S.", animal,
+// points); turning it off takes the row down. Only with the family account (a parent's).
+// globalBoard: true = on, false = just turned off (row still to take down), unset = never on.
+let globalOff = false; // the database doesn't have the global leaderboard switched on yet
+async function syncGlobal() {
+  if (!user || !familyMode) return;
+  let changed = false;
+  for (const p of settings.players) {
+    try {
+      if (p.globalBoard === true) {
+        const name = globalName(p.name, p.lastInitial);
+        if (name) await Cloud.saveGlobalRow(user, p.id, { name, avatar: p.avatar, ...totals(p.id) });
+      } else if (p.globalBoard === false) {
+        await Cloud.deleteGlobalRow(user, p.id);
+        delete p.globalBoard; changed = true;
+      }
+      globalOff = false;
+    } catch (e) {
+      if (e?.code === 'permission-denied') globalOff = true;
+      console.warn('global leaderboard', e?.code ?? e);
+    }
+  }
+  if (changed) saveSettings();
+  globalRows = null; // fetch fresh totals next time the board shows
 }
 
 async function signedIn(u) {
@@ -137,6 +182,8 @@ async function signedIn(u) {
         resultSets[op] = mergeResults(resultSets[op], acct.progress[storeKey(op, 'results')] ?? []);
         saveProgress(op);
       }
+      resultSets[MIX] = mergeResults(resultSets[MIX], acct.progress[storeKey(MIX, 'results')] ?? []);
+      saveProgress(MIX);
     }
     await pushAccount();
   } catch (e) { console.warn('cloud load failed', e); notice('Couldn’t reach your Google account just now. Playing on this computer; it’ll save when you’re back online.'); }
@@ -161,6 +208,10 @@ async function pushAccount() {
     points[op] = mine.reduce((t, r) => t + r.points, 0);
     week[op] = mine.filter(r => r.date >= weekStart()).reduce((t, r) => t + r.points, 0);
   }
+  const mixMine = resultSets[MIX].filter(r => r.player === user.uid);
+  progress[storeKey(MIX, 'results')] = mixMine;
+  points[MIX] = mixMine.reduce((t, r) => t + r.points, 0);
+  week[MIX] = mixMine.filter(r => r.date >= weekStart()).reduce((t, r) => t + r.points, 0);
   await Cloud.saveAccount(user.uid, { name: me?.name, avatar: me?.avatar, grade: settings.grade }, progress);
   await Cloud.saveBoardRow(user, { name: me?.name ?? Cloud.shortName(user), avatar: me?.avatar ?? '🦖', grade: settings.grade || '', points, week });
 }
@@ -206,7 +257,7 @@ function signInHelp(e) {
 
 function renderHome() {
   renderAccount();
-  segs($('modeSegs'), OPS.map(o => [o, OP[o].label]), settings.mode, v => { settings.mode = v; boardOp = v; saveSettings(); renderHome(); });
+  segs($('modeSegs'), MODES.map(o => [o, OP[o].label]), settings.mode, v => { settings.mode = v; boardOp = v; saveSettings(); renderHome(); });
   const box = $('players');
   box.innerHTML = '';
   for (const p of family()) {
@@ -248,21 +299,52 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&' + 'amp;', 
 
 // MARK: Leaderboard
 
-let boardScope = 'family', boardOp = null, boardWeek = false, schoolRows = null; // All time first: "This week" looked like a reset
+let boardScope = 'family', boardOp = null, boardWeek = false, schoolRows = null, globalRows = null, globalKey = ''; // All time first: "This week" looked like a reset
 
 function familyRows(ops) {
   const start = weekStart();
   return family().map(p => {
     const rs = ops.flatMap(o => resultSets[o]).filter(r => r.player === p.id && (!boardWeek || r.date >= start));
     const right = rs.reduce((t, r) => t + r.right, 0), asked = rs.reduce((t, r) => t + r.asked, 0);
-    const auto = ops.reduce((n, o) => n + Object.values(memories[o][p.id] ?? {}).filter(f => Coach.mastery(f) === 'automatic').length, 0);
+    // Mastered facts live per operation; the Mix tab (and All) counts them across all four.
+    const factOps = [...new Set(ops.flatMap(o => (o === MIX ? OPS : [o])))];
+    const auto = factOps.reduce((n, o) => n + Object.values(memories[o][p.id] ?? {}).filter(f => Coach.mastery(f) === 'automatic').length, 0);
     return { id: p.id, name: p.name, avatar: p.avatar, points: rs.reduce((t, r) => t + r.points, 0), rounds: rs.length,
       wins: rs.filter(r => r.won).length, percent: asked ? Math.round(right / asked * 100) : 0, auto };
   }).sort((a, b) => b.points - a.points || b.auto - a.auto);
 }
 
+const reported = () => new Set(load('reportedRows', []));
+function globalBoardRows(ops) {
+  const wk = weekId(Date.now()), hide = reported();
+  return (globalRows ?? [])
+    .filter(r => !hide.has(r.id))
+    .map(r => ({ id: r.id, name: r.name, avatar: r.avatar, me: r.owner === user?.uid,
+      points: ops.reduce((t, o) => t + (boardWeek ? (r.week?.id === wk ? r.week?.[o] ?? 0 : 0) : r.points?.[o] ?? 0), 0) }))
+    .filter(r => r.points > 0)
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 50);
+}
+
+async function fetchGlobal() {
+  const key = `${boardOp}|${boardWeek}`;
+  if (globalRows && globalKey === key) return;
+  globalKey = key;
+  try { globalRows = await Cloud.loadGlobal(boardOp, boardWeek ? weekId(Date.now()) : null); globalOff = false; }
+  catch (e) { globalRows = []; if (e?.code === 'permission-denied') globalOff = true; console.warn('global leaderboard', e?.code ?? e); }
+}
+
+async function report(r) {
+  if (!user || !confirm(`Report “${r.name}”? If the name isn’t OK for kids, we’ll take it down. It disappears from your board now.`)) return;
+  save('reportedRows', [...reported(), r.id]);
+  try { await Cloud.reportRow(user, r); notice('Thanks for telling us. We’ll check it.'); }
+  catch { notice('Couldn’t send the report just now. It’s hidden on this computer; you can also email privacy@agrowthfactory.com.'); }
+  renderBoard();
+}
+
 function boardRows(ops) {
   if (boardScope === 'family') return familyRows(ops);
+  if (boardScope === 'global') return globalBoardRows(ops);
   const wk = weekId(Date.now());
   return (schoolRows ?? [])
     .filter(r => boardScope === 'school' || (settings.grade && r.grade === settings.grade))
@@ -277,31 +359,37 @@ async function renderBoard() {
   const el = $('board');
   if (!family().length) { el.hidden = true; return; }
   el.hidden = false;
-  if (boardOp === undefined || (boardOp !== null && !OPS.includes(boardOp))) boardOp = settings.mode;
+  if (boardOp === undefined || (boardOp !== null && !MODES.includes(boardOp))) boardOp = settings.mode;
   const school = user && Cloud.schoolOf(user);
-  if (!school) boardScope = 'family';
-  const ops = boardOp ? [boardOp] : OPS;
+  if (!user || (!school && (boardScope === 'school' || boardScope === 'grade'))) boardScope = 'family';
+  const ops = boardOp ? [boardOp] : MODES;
   el.innerHTML = `<h3>🏆 Leaderboard <small>${boardOp ? OP[boardOp].noun.replace(/^./, c => c.toUpperCase()) : 'All modes'}</small></h3>`;
-  if (school) {
+  if (user) {
     const s = document.createElement('div'); s.className = 'segs';
-    segs(s, [['family', '🏠 Family'], ['school', '🏫 School'], ['grade', settings.grade ? `Grade ${settings.grade}` : 'Grade']], boardScope, async v => {
+    const scopes = [['family', '🏠 Family'], ['global', '🌎 World']];
+    if (school) scopes.push(['school', '🏫 School'], ['grade', settings.grade ? `Grade ${settings.grade}` : 'Grade']);
+    segs(s, scopes, boardScope, async v => {
       boardScope = v;
       if (v === 'grade' && !settings.grade) { openSettings(); return; }
-      if (v !== 'family') schoolRows = await Cloud.loadBoard(user).catch(() => []);
+      if (v === 'school' || v === 'grade') schoolRows = await Cloud.loadBoard(user).catch(() => []);
+      if (v === 'global') globalRows = null;
       renderBoard();
     });
     el.append(s);
   }
   const m = document.createElement('div'); m.className = 'segs';
-  segs(m, [...OPS.map(o => [o, OP[o].symbol]), [null, 'All']], boardOp, v => { boardOp = v; renderBoard(); });
+  segs(m, [...MODES.map(o => [o, OP[o].symbol]), [null, 'All']], boardOp, v => { boardOp = v; renderBoard(); });
   const w = document.createElement('div'); w.className = 'segs';
   segs(w, [[true, 'This week'], [false, 'All time']], boardWeek, v => { boardWeek = v; renderBoard(); });
   el.append(m, w);
-  if (boardScope !== 'family' && schoolRows === null) schoolRows = await Cloud.loadBoard(user).catch(() => []);
+  if ((boardScope === 'school' || boardScope === 'grade') && schoolRows === null) schoolRows = await Cloud.loadBoard(user).catch(() => []);
+  if (boardScope === 'global') await fetchGlobal();
   const rows = boardRows(ops);
   if (!rows.length || rows.every(r => !r.points)) {
     const p = document.createElement('p'); p.className = 'muted small';
     p.textContent = boardScope === 'family' ? (boardWeek ? 'No rounds yet this week. Finish a round to get on the board!' : 'Finish a round to get on the board!')
+      : boardScope === 'global' ? (globalOff ? 'The world leaderboard isn’t switched on yet. Check back soon!'
+        : `No one is on the world leaderboard${boardWeek ? ' this week' : ''} yet. ${familyMode ? 'Turn it on for a player: tap ✏️ on their picture.' : 'A parent can turn it on for a player with the family account.'}`)
       : 'No one from your school has played yet. Be the first!';
     el.append(p);
     if (boardScope === 'family') return;
@@ -312,7 +400,13 @@ async function renderBoard() {
     const detail = boardScope === 'family'
       ? (r.rounds ? [`${r.rounds} round${r.rounds === 1 ? '' : 's'}`, r.wins ? `🏆 ${r.wins}` : '', `${r.percent}% right`, `✅ ${r.auto} mastered`].filter(Boolean).join(' · ') : `No rounds ${boardWeek ? 'this week' : 'yet'} · ✅ ${r.auto} mastered`)
       : '';
-    d.innerHTML = `<div class="medal">${r.points ? (['🥇', '🥈', '🥉'][i] ?? i + 1) : '–'}</div><div class="av">${r.avatar}</div><div class="info"><b>${esc(r.name)}</b><span>${detail}</span></div><div class="score"><b>${r.points.toLocaleString()}</b><span>points</span></div>`;
+    d.innerHTML = `<div class="medal">${r.points ? (['🥇', '🥈', '🥉'][i] ?? i + 1) : '–'}</div><div class="av">${esc(r.avatar)}</div><div class="info"><b>${esc(r.name)}</b><span>${boardScope === 'global' && r.me ? 'Your family' : detail}</span></div><div class="score"><b>${r.points.toLocaleString()}</b><span>points</span></div>`;
+    if (boardScope === 'global' && !r.me) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'report'; b.textContent = '⚑';
+      b.title = b.ariaLabel = `Report ${r.name}`;
+      b.onclick = () => report(r);
+      d.append(b);
+    }
     el.append(d);
   });
 }
@@ -326,11 +420,25 @@ function editPlayer(p) {
   $('dlgName').value = p?.name ?? '';
   dlgAvatar = p?.avatar ?? AVATARS[family().length % AVATARS.length];
   $('dlgDelete').hidden = !p || p.account;
+  // The global leaderboard is a parent's choice, so it's only offered with the family account.
+  $('globalBox').hidden = !(user && familyMode) || !!p?.account;
+  $('dlgGlobal').checked = p?.globalBoard === true;
+  $('dlgInitial').value = p?.lastInitial ?? '';
+  showGlobalName();
   drawAnimals();
   $('playerDlg').showModal();
   // On phones, don't pop the keyboard right away: it would cover the animals.
   if (!p && !matchMedia('(pointer: coarse)').matches) $('dlgName').focus();
 }
+function showGlobalName() {
+  const on = $('dlgGlobal').checked, n = globalName($('dlgName').value, $('dlgInitial').value);
+  $('globalDetails').hidden = !on;
+  const noName = !$('dlgName').value.trim(), noInitial = !$('dlgInitial').value.trim();
+  $('globalPreview').textContent = !on ? '' : n ? `Shows as “${n}” with their animal and points, to anyone signed in to the game.`
+    : noName ? 'Type their name above.' : noInitial ? 'Add the first letter of their last name.' : 'That name can’t go on the world leaderboard. Use letters A to Z, or another name.';
+  $('globalPreview').className = 'small ' + (on && !n && !noName && !noInitial ? 'bad' : 'muted');
+}
+for (const id of ['dlgGlobal', 'dlgInitial', 'dlgName']) $(id).addEventListener('input', showGlobalName);
 function drawAnimals() {
   $('dlgAvatar').textContent = dlgAvatar;
   const g = $('animals'); g.innerHTML = '';
@@ -347,13 +455,21 @@ function drawAnimals() {
 function finishPlayer(v) {
   const name = $('dlgName').value.trim();
   if (v === 'save' && name) {
-    if (editing) { editing.name = name; editing.avatar = dlgAvatar; }
-    else settings.players.push({ id: uuid(), name, avatar: dlgAvatar, playing: playingNow().length < MAX_PLAYERS });
+    const p = editing ?? { id: uuid(), playing: playingNow().length < MAX_PLAYERS };
+    p.name = name; p.avatar = dlgAvatar;
+    if (!$('globalBox').hidden) {
+      const on = $('dlgGlobal').checked;
+      p.lastInitial = $('dlgInitial').value.trim().slice(0, 1).toUpperCase() || undefined;
+      if (on) p.globalBoard = true; else if (p.globalBoard === true) p.globalBoard = false; // false: take the row down
+    }
+    if (!editing) settings.players.push(p);
     saveSettings(); if (editing?.account) pushAccount().catch(() => {});
   } else if (v === 'delete' && editing && confirm(`Delete ${editing.name} forever? This erases their scores and everything the coach learned about them.`)) {
+    if (editing.globalBoard !== undefined && user && familyMode) Cloud.deleteGlobalRow(user, editing.id).catch(() => {});
     settings.players = settings.players.filter(p => p.id !== editing.id);
     save('deletedPlayers', [...new Set([...load('deletedPlayers', []), editing.id])]); // so the family's other devices drop them too
     for (const op of OPS) { delete memories[op][editing.id]; delete skillSets[op][editing.id]; resultSets[op] = resultSets[op].filter(r => r.player !== editing.id); saveProgress(op); }
+    resultSets[MIX] = resultSets[MIX].filter(r => r.player !== editing.id); saveProgress(MIX);
     saveSettings();
   }
   editing = null;
@@ -365,6 +481,8 @@ playerForm.addEventListener('submit', e => {
   e.preventDefault();
   const v = e.submitter?.value || 'save'; // Return on the keyboard counts as Save
   if (v === 'save' && !$('dlgName').value.trim()) { $('dlgName').focus(); return; } // a name is needed
+  // Turning on the global leaderboard needs a name it can show.
+  if (v === 'save' && !$('globalBox').hidden && $('dlgGlobal').checked && !globalName($('dlgName').value, $('dlgInitial').value)) { $('dlgInitial').focus(); showGlobalName(); return; }
   try { $('playerDlg').close(v); } catch {}
   finishPlayer(v);
 });
@@ -477,9 +595,10 @@ async function start() {
   Voice.setVoice(settings.voiceID, settings.voiceSpeed);
   notice(null);
   const op = settings.mode;
-  G = { op, quit: false, paused: false, usingVoice: settings.useVoice && Voice.canListen, recent: [], turn: 0, pending: null, tapResolve: null, unpause: null,
+  // g.mode is what was picked (maybe Mix); g.op is the current question's operation.
+  G = { mode: op, op: op === MIX ? 'mul' : op, quit: false, paused: false, usingVoice: settings.useVoice && Voice.canListen, recent: [], turn: 0, pending: null, tapResolve: null, unpause: null,
     players: playingNow().map(c => ({ c, points: 0, right: 0, asked: 0, streak: 0, best: 0, misses: [], fastest: null, retry: [], retried: new Set(), recent: [], milestones: [], roundSecs: [],
-      masteredAtStart: Coach.masteredGroups(op, memories[op][c.id] ?? {}) })) };
+      mixBag: [], masteredAtStart: Object.fromEntries(OPS.map(o => [o, Coach.masteredGroups(o, memories[o][c.id] ?? {})])) })) };
   const g = G;
   show('game');
   $('keypad').hidden = g.usingVoice; $('entry').hidden = g.usingVoice; $('heard').hidden = !g.usingVoice;
@@ -488,7 +607,7 @@ async function start() {
   const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0];
   setMic('speaking');
   // Queue the first line before any other sound, still inside the tap on Start.
-  const intro = Voice.say(`Let's go! ${list}, you ${names.length > 1 ? 'each get' : 'get'} ${settings.perPlayer} ${op === 'mul' ? '' : OP[op].noun + ' '}questions.`);
+  const intro = Voice.say(`Let's go! ${list}, you ${names.length > 1 ? 'each get' : 'get'} ${settings.perPlayer} ${op === 'mul' || op === MIX ? '' : OP[op].noun + ' '}questions.`);
   unlockSound();
   try { await navigator.wakeLock?.request('screen'); } catch {}
   await intro;
@@ -509,8 +628,18 @@ function nextQuestion(g, i) {
   const p = g.players[i];
   const r = p.retry.findIndex(x => x.due <= p.asked);
   if (r >= 0) return p.retry.splice(r, 1)[0].q;
-  const mem = memories[g.op][p.c.id] ?? {};
-  return Coach.pick(g.op, skill(p.c.id, g.op), mem, [...p.recent, ...Coach.recentKeys(mem)].slice(0, 15), g.recent);
+  const op = g.mode === MIX ? nextMixOp(p) : g.mode;
+  const mem = memories[op][p.c.id] ?? {};
+  return Coach.pick(op, skill(p.c.id, op), mem, [...p.recent, ...Coach.recentKeys(mem)].slice(0, 15), g.recent);
+}
+
+/** Mix: each player works through a shuffled bag of the four operations, so a round touches all of them. */
+function nextMixOp(p) {
+  if (!p.mixBag.length) {
+    p.mixBag = [...OPS];
+    for (let i = p.mixBag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p.mixBag[i], p.mixBag[j]] = [p.mixBag[j], p.mixBag[i]]; }
+  }
+  return p.mixBag.pop();
 }
 
 const questionLine = (g, i, q) => (g.players.length > 1 ? `${g.players[i].c.name}, what's ${q.spoken}?` : `What's ${q.spoken}?`);
@@ -527,6 +656,7 @@ function feedback(kind) { $('stage').className = 'stage' + (kind ? ' ' + kind : 
 async function askOne(g, i) {
   const p = g.players[i];
   const q = nextQuestion(g, i);
+  g.op = q.op; // in Mix, each question has its own operation (coach, chart, answer limits)
   const pid = p.c.id;
   p.recent = [q.key, ...p.recent].slice(0, 4);
   g.recent.unshift(q.key);
@@ -748,13 +878,18 @@ function quit() {
 }
 
 async function finish(g, early) {
-  const op = g.op;
+  const op = g.mode; // the leaderboard this round counts toward (Mix has its own)
   if (!early) {
     for (const p of g.players) {
       if (!p.asked) continue;
+      // Milestones in every operation this round touched (Mix: all four).
+      for (const o of op === MIX ? OPS : [op]) {
+        const now = Coach.masteredGroups(o, memories[o][p.c.id] ?? {});
+        for (const gr of groups(o)) if (now.has(gr.milestone) && !p.masteredAtStart[o].has(gr.milestone)) p.milestones.push(`${p.c.name} has mastered ${gr.milestone}!`);
+      }
+      // The answer clock is per operation; a Mix round's answers are spread across four, so only single-mode rounds adjust it.
+      if (op === MIX) continue;
       const mem = memories[op][p.c.id] ?? {};
-      const now = Coach.masteredGroups(op, mem);
-      for (const gr of groups(op)) if (now.has(gr.milestone) && !p.masteredAtStart.has(gr.milestone)) p.milestones.push(`${p.c.name} has mastered ${gr.milestone}!`);
       const s = skill(p.c.id, op), before = s.clock;
       const c = Coach.adjustClock(op, s, mem, p.right, p.asked, p.roundSecs.length ? p.roundSecs : [s.clock]);
       if (c) p.milestones.push(c < before ? `${p.c.name}'s clock is now ${c} seconds. Speedy!` : `${p.c.name} gets a little more time: ${c} seconds.`);
@@ -863,7 +998,7 @@ function renderStats() {
 // MARK: Wiring
 
 $('btnStart').onclick = start;
-$('btnStats').onclick = () => { statsOp = settings.mode; renderStats(); show('stats'); };
+$('btnStats').onclick = () => { statsOp = settings.mode === MIX ? 'mul' : settings.mode; renderStats(); show('stats'); }; // Mix has no chart of its own
 $('btnSettings').onclick = openSettings;
 $('btnRepeat').onclick = () => interrupt({ type: 'command', value: 'repeat' });
 $('btnSkip').onclick = () => interrupt({ type: 'skip' });
@@ -879,4 +1014,7 @@ Voice.setVoice(settings.voiceID, settings.voiceSpeed);
 boardOp = settings.mode;
 renderHome();
 Cloud.watchUser(signedIn).catch(() => {});
+// Tests only (with Firebase's local emulator): sign in as a made-up account, and peek at state.
+if (/[?&]firebaseEmulator=/.test(location.search)) window.__ttrt = { signIn: (email, name) => Cloud.testSignIn(email, name),
+  state: () => ({ user: user?.uid ?? null, familyMode, globalOff, players: settings.players }), sync: () => pushFamily() };
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
