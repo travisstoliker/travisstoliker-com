@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="style.css?v=19">
+<link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
 <main id="app">
@@ -68,6 +68,11 @@
     <h1 class="center" id="resultsTitle"></h1>
     <div class="card" id="resultScores"></div>
     <div class="card" id="practice"></div>
+    <div class="card" id="worldNudge" hidden>
+      <b id="worldNudgeTitle"></b>
+      <p class="muted small">Families everywhere can see how you’re doing, as just a first name and last initial.</p>
+      <div class="nudgeBtns"><button type="button" class="ghost" id="worldNudgeYes">Yes, set it up</button><button type="button" class="link" id="worldNudgeNo">No thanks</button></div>
+    </div>
     <button class="big" id="btnAgain">▶ Play again</button>
     <button class="ghost" id="btnHome2">🏠 Home</button>
     <p class="muted center small" id="againHint">Say “play again” to go again hands-free.</p>
@@ -110,6 +115,31 @@
   </form>
 </dialog>
 
+<!-- World leaderboard: a parent signs in if needed, picks players (a switch and a last initial
+     each, with a live preview), then one Save. -->
+<dialog id="worldDlg">
+  <form method="dialog" class="dlg">
+    <div class="dlgbar">
+      <button type="button" class="ghost" id="worldCancel">Cancel</button>
+      <h2>World leaderboard</h2>
+      <button type="button" class="primary" id="worldSave" disabled>Save</button>
+    </div>
+    <div class="globe">🌎</div>
+    <p class="muted small">See how your family stacks up against families everywhere. Each player shows only as a first name and last initial, with their animal and points.</p>
+    <div class="section" id="worldSignIn">
+      <h3>First, a parent signs in</h3>
+      <p class="muted tiny">This also saves the family’s scores online so they match on your other computers. Nobody else needs an account.</p>
+      <div class="account" id="worldSignInBtns"></div>
+    </div>
+    <div class="section" id="worldPick">
+      <h3 id="worldPickTitle">Who goes on the board?</h3>
+      <div id="worldPlayers"></div>
+    </div>
+    <p class="muted tiny">Only people signed in to the game can see the world leaderboard. Anyone can report a name. You can turn this off any time, here or in the player’s settings.</p>
+    <p class="small bad" id="worldError" hidden></p>
+  </form>
+</dialog>
+
 <!-- Settings -->
 <dialog id="settingsDlg">
   <form method="dialog" class="dlg">
@@ -141,6 +171,6 @@
 </dialog>
 
 <button id="soundBtn" class="soundBtn" hidden>🔈 Tap here to turn on the sound</button>
-<script type="module" src="js/app.js?v=21"></script>
+<script type="module" src="js/app.js?v=22"></script>
 </body>
 </html>
