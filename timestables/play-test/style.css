@@ -190,3 +190,29 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .globalBox p { margin: 8px 0 0; }
 .bad { color: var(--bad, #ff6b6b); }
 .rowItem .report { flex: none; background: none; border: 0; color: var(--muted); font-size: 18px; padding: 6px; cursor: pointer; }
+
+/* Very narrow phones (320 to 360 wide): at 15px the five mode names overlap each other, so the
+   mode bar uses slightly smaller text and tighter spacing there. */
+@media (max-width: 360px) {
+  #modeSegs { gap: 2px; padding: 3px; }
+  #modeSegs button { font-size: 12px; letter-spacing: -0.2px; padding: 0 1px; }
+}
+
+/* Hold the home screen's space while the game script fills it in, so nothing jumps down on a
+   slow phone (Lighthouse layout shift). Heights match the filled versions. */
+#modeSegs:empty { min-height: 48px; }
+#countSegs:empty, #voiceSegs:empty { min-height: 50px; }
+#players:empty { min-height: 113px; }
+.segs button.on { background: #4b6ae6; } /* white text at 4.66:1 contrast (was 3.07:1 on #6c8cff) */
+
+/* Game screen fits the visible height. iPhone Safari's floating address bar sits below the visible
+   area (100svh), and the game screen was taller than that, so Repeat/Skip/Pause/End ended up under
+   the bar. Spacing, keypad and buttons now scale with the visible height, never larger than before
+   (tall windows look exactly the same). */
+#game { gap: clamp(8px, 1.6svh, 16px); }
+#game .stage { padding: clamp(10px, 2.2svh, 26px) 12px; gap: clamp(4px, 1svh, 12px); }
+#game .problem { font-size: min(clamp(56px, 18vw, 120px), max(11svh, 64px)); }
+#game .problem.withTip { font-size: min(clamp(44px, 12vw, 64px), max(8svh, 44px)); }
+#game .keypad button { height: clamp(42px, 6svh, 56px); }
+#game .controls button { height: clamp(46px, 6.6svh, 60px); }
+#app { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
