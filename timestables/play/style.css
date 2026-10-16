@@ -197,3 +197,10 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
   #modeSegs { gap: 2px; padding: 3px; }
   #modeSegs button { font-size: 12px; letter-spacing: -0.2px; padding: 0 1px; }
 }
+
+/* Hold the home screen's space while the game script fills it in, so nothing jumps down on a
+   slow phone (Lighthouse layout shift). Heights match the filled versions. */
+#modeSegs:empty { min-height: 48px; }
+#countSegs:empty, #voiceSegs:empty { min-height: 50px; }
+#players:empty { min-height: 113px; }
+.segs button.on { background: #4b6ae6; } /* white text at 4.66:1 contrast (was 3.07:1 on #6c8cff) */
