@@ -190,3 +190,10 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .globalBox p { margin: 8px 0 0; }
 .bad { color: var(--bad, #ff6b6b); }
 .rowItem .report { flex: none; background: none; border: 0; color: var(--muted); font-size: 18px; padding: 6px; cursor: pointer; }
+
+/* Very narrow phones (320 to 360 wide): at 15px the five mode names overlap each other, so the
+   mode bar uses slightly smaller text and tighter spacing there. */
+@media (max-width: 360px) {
+  #modeSegs { gap: 2px; padding: 3px; }
+  #modeSegs button { font-size: 12px; letter-spacing: -0.2px; padding: 0 1px; }
+}
