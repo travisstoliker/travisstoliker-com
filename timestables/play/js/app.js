@@ -337,13 +337,15 @@ function familyRows(ops) {
 }
 
 const reported = () => new Set(load('reportedRows', []));
+// This browser's players who are switched on show even before they score.
+const onHere = () => new Set(user && familyMode ? family().filter(p => p.globalBoard === true).map(p => Cloud.globalRowId(user, p.id)) : []);
 function globalBoardRows(ops) {
-  const wk = weekId(Date.now()), hide = reported();
+  const wk = weekId(Date.now()), hide = reported(), on = onHere();
   return (globalRows ?? [])
     .filter(r => !hide.has(r.id))
     .map(r => ({ id: r.id, name: r.name, avatar: r.avatar, me: r.owner === user?.uid,
       points: ops.reduce((t, o) => t + (boardWeek ? (r.week?.id === wk ? r.week?.[o] ?? 0 : 0) : r.points?.[o] ?? 0), 0) }))
-    .filter(r => r.points > 0)
+    .filter(r => r.points > 0 || on.has(r.id))
     .sort((a, b) => b.points - a.points)
     .slice(0, 50);
 }
@@ -352,7 +354,17 @@ async function fetchGlobal() {
   const key = `${boardOp}|${boardWeek}`;
   if (globalRows && globalKey === key) return;
   globalKey = key;
-  try { globalRows = await Cloud.loadGlobal(boardOp, boardWeek ? weekId(Date.now()) : null); globalOff = false; }
+  try {
+    const rows = await Cloud.loadGlobal(boardOp, boardWeek ? weekId(Date.now()) : null);
+    // Add this family's own rows even when they're outside the top of the list (a player who
+    // just joined has 0 points), so a parent always sees their players are on.
+    const on = onHere();
+    if (on.size) {
+      const have = new Set(rows.map(r => r.id));
+      rows.push(...(await Cloud.ownGlobalRows(user).catch(() => [])).filter(r => !have.has(r.id) && on.has(r.id)));
+    }
+    globalRows = rows; globalOff = false;
+  }
   catch (e) { globalRows = []; if (e?.code === 'permission-denied') globalOff = true; console.warn('global leaderboard', e?.code ?? e); }
 }
 
@@ -411,7 +423,7 @@ async function renderBoard() {
   if ((boardScope === 'school' || boardScope === 'grade') && schoolRows === null) schoolRows = await Cloud.loadBoard(user).catch(() => []);
   if (boardScope === 'global') await fetchGlobal();
   const rows = boardRows(ops);
-  if (!rows.length || rows.every(r => !r.points)) {
+  if (!rows.length || (boardScope !== 'global' && rows.every(r => !r.points))) {
     const p = document.createElement('p'); p.className = 'muted small';
     p.textContent = boardScope === 'family' ? (boardWeek ? 'No rounds yet this week. Finish a round to get on the board!' : 'Finish a round to get on the board!')
       : boardScope === 'global' ? (globalOff ? 'The world leaderboard isn’t switched on yet. Check back soon!'
@@ -422,11 +434,11 @@ async function renderBoard() {
   }
   rows.forEach((r, i) => {
     const d = document.createElement('div');
-    d.className = 'rowItem' + (r.rounds === 0 ? ' dim' : '') + (r.me ? ' me' : '');
+    d.className = 'rowItem' + (r.rounds === 0 ? ' dim' : '') + (r.me ? ' me' : '') + (r.me && boardScope === 'global' ? ' fam' : '');
     const detail = boardScope === 'family'
       ? (r.rounds ? [`${r.rounds} round${r.rounds === 1 ? '' : 's'}`, r.wins ? `🏆 ${r.wins}` : '', `${r.percent}% right`, `✅ ${r.auto} mastered`].filter(Boolean).join(' · ') : `No rounds ${boardWeek ? 'this week' : 'yet'} · ✅ ${r.auto} mastered`)
       : '';
-    d.innerHTML = `<div class="medal">${r.points ? (['🥇', '🥈', '🥉'][i] ?? i + 1) : '–'}</div><div class="av">${esc(r.avatar)}</div><div class="info"><b>${esc(r.name)}</b><span>${boardScope === 'global' && r.me ? 'Your family' : detail}</span></div><div class="score"><b>${r.points.toLocaleString()}</b><span>points</span></div>`;
+    d.innerHTML = `<div class="medal">${r.points ? (['🥇', '🥈', '🥉'][i] ?? i + 1) : '–'}</div><div class="av">${esc(r.avatar)}</div><div class="info"><b>${esc(r.name)}</b><span>${boardScope === 'global' && r.me ? (r.points ? 'Your family' : 'Your family · play a round to score') : detail}</span></div><div class="score"><b>${r.points.toLocaleString()}</b><span>points</span></div>`;
     if (boardScope === 'global' && !r.me) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'report'; b.textContent = '⚑';
       b.title = b.ariaLabel = `Report ${r.name}`;
