@@ -3,7 +3,7 @@ import { OPS, OP, MIX, MODES, storeKey, findItem, groups, question, KIND_NAME, I
 import * as Coach from './coach.js?v=2';
 import { tipFor } from './tips.js';
 import * as Voice from './voice.js?v=14';
-import * as Cloud from './cloud.js?v=4';
+import * as Cloud from './cloud.js?v=5';
 import { globalName } from './global-name.js?v=1';
 
 const $ = id => document.getElementById(id);
@@ -154,13 +154,27 @@ async function syncGlobal() {
   globalRows = null; // fetch fresh totals next time the board shows
 }
 
+// Signing in from the World leaderboard box is a parent's: with no family saved yet, this browser's
+// players become the family, saved under that account (the same as saving the family in the app).
+let parentSignIn = false;
 async function signedIn(u) {
+  await signedInNow(u);
+  if ($('worldDlg').open) worldReload();
+}
+async function signedInNow(u) {
   user = u;
   familyMode = false;
+  const asParent = parentSignIn; parentSignIn = false;
   if (!u) { renderHome(); return; }
   try {
     const fam = await Cloud.loadFamily(u.uid);
     if (fam) { await joinFamily(u, fam); renderHome(); return; }
+    if (asParent) {
+      settings.players = settings.players.filter(p => !(p.account && p.id === u.uid));
+      familyMode = true; saveSettings();
+      await pushFamily();
+      renderHome(); return;
+    }
   } catch (e) { console.warn('family load failed', e); }
   // The account is a player in the family, saved under the Google account's id.
   let p = settings.players.find(p => p.id === u.uid);
@@ -243,11 +257,19 @@ function renderAccount() {
     out.onclick = async () => { await Cloud.signOut(); settings.players = settings.players.filter(p => !p.account); saveSettings(); };
     el.append(who, out);
   } else {
-    const b = document.createElement('button');
-    b.innerHTML = '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg> Sign in with Google';
-    b.onclick = async () => { try { await Cloud.signIn(); } catch (e) { if (e?.code !== 'auth/popup-closed-by-user') notice(signInHelp(e)); } };
-    el.append(b);
+    el.append(signInButton());
   }
+}
+
+/** "Sign in with Google". `parent`: from the World leaderboard box (makes the family's account). */
+function signInButton(parent = false) {
+  const b = document.createElement('button'); b.type = 'button';
+  b.innerHTML = '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg> Sign in with Google';
+  b.onclick = async () => {
+    parentSignIn = parent;
+    try { await Cloud.signIn(); } catch (e) { parentSignIn = false; if (e?.code !== 'auth/popup-closed-by-user') (parent ? worldError : notice)(signInHelp(e)); }
+  };
+  return b;
 }
 
 function signInHelp(e) {
@@ -361,10 +383,12 @@ async function renderBoard() {
   el.hidden = false;
   if (boardOp === undefined || (boardOp !== null && !MODES.includes(boardOp))) boardOp = settings.mode;
   const school = user && Cloud.schoolOf(user);
-  if (!user || (!school && (boardScope === 'school' || boardScope === 'grade'))) boardScope = 'family';
+  // 🌎 World shows before anyone signs in (when sign-in is offered), so families can find it.
+  const tabs = !!user || Cloud.available;
+  if (!tabs || (!school && (boardScope === 'school' || boardScope === 'grade'))) boardScope = 'family';
   const ops = boardOp ? [boardOp] : MODES;
   el.innerHTML = `<h3>🏆 Leaderboard <small>${boardOp ? OP[boardOp].noun.replace(/^./, c => c.toUpperCase()) : 'All modes'}</small></h3>`;
-  if (user) {
+  if (tabs) {
     const s = document.createElement('div'); s.className = 'segs';
     const scopes = [['family', '🏠 Family'], ['global', '🌎 World']];
     if (school) scopes.push(['school', '🏫 School'], ['grade', settings.grade ? `Grade ${settings.grade}` : 'Grade']);
@@ -382,6 +406,8 @@ async function renderBoard() {
   const w = document.createElement('div'); w.className = 'segs';
   segs(w, [[true, 'This week'], [false, 'All time']], boardWeek, v => { boardWeek = v; renderBoard(); });
   el.append(m, w);
+  if (boardScope === 'global' && (!familyMode || worldCanAdd())) el.append(worldJoinBox());
+  if (boardScope === 'global' && !user) return; // the board needs an account to read
   if ((boardScope === 'school' || boardScope === 'grade') && schoolRows === null) schoolRows = await Cloud.loadBoard(user).catch(() => []);
   if (boardScope === 'global') await fetchGlobal();
   const rows = boardRows(ops);
@@ -389,7 +415,7 @@ async function renderBoard() {
     const p = document.createElement('p'); p.className = 'muted small';
     p.textContent = boardScope === 'family' ? (boardWeek ? 'No rounds yet this week. Finish a round to get on the board!' : 'Finish a round to get on the board!')
       : boardScope === 'global' ? (globalOff ? 'The world leaderboard isn’t switched on yet. Check back soon!'
-        : `No one is on the world leaderboard${boardWeek ? ' this week' : ''} yet. ${familyMode ? 'Turn it on for a player: tap ✏️ on their picture.' : 'A parent can turn it on for a player with the family account.'}`)
+        : `No one is on the world leaderboard${boardWeek ? ' this week' : ''} yet. Be the first!`)
       : 'No one from your school has played yet. Be the first!';
     el.append(p);
     if (boardScope === 'family') return;
@@ -490,6 +516,127 @@ $('dlgCancel')?.addEventListener('click', () => { try { $('playerDlg').close('ca
 $('dlgName').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); playerForm.requestSubmit ? playerForm.requestSubmit($('dlgSave')) : $('dlgSave').click(); }
 });
+
+// MARK: World leaderboard (one box: a parent signs in if needed, picks players, one Save)
+
+/** Anyone in the family who could still be added. */
+const worldFamily = () => family().filter(p => !p.account);
+const worldCanAdd = () => worldFamily().some(p => p.globalBoard !== true);
+
+/** On the 🌎 World tab: the way in for families who aren't on it yet. */
+function worldJoinBox() {
+  const d = document.createElement('div'); d.className = 'worldJoin';
+  if (!familyMode) { const p = document.createElement('p'); p.className = 'muted small'; p.textContent = 'See how your family stacks up against families everywhere, as just a first name and last initial.'; d.append(p); }
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'ghost'; b.id = 'worldJoin';
+  b.textContent = familyMode ? '🌎 Add players to the world leaderboard' : '🌎 Join the world leaderboard';
+  b.onclick = () => openWorld();
+  d.append(b);
+  return d;
+}
+
+let worldOn = {}, worldIni = {}, worldPre = [];
+const worldShown = p => globalName(p.name, worldIni[p.id]);
+const worldChanged = p => { const want = !!worldOn[p.id]; return want !== (p.globalBoard === true) || (want && (worldIni[p.id] ?? '') !== (p.lastInitial ?? '')); };
+/** The last initial most of the family already uses, to fill in for a player being switched on. */
+function familyInitial() {
+  const n = {};
+  for (const p of worldFamily()) if (p.lastInitial) n[p.lastInitial] = (n[p.lastInitial] ?? 0) + 1;
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] ?? '';
+}
+const worldCanSave = () => familyMode && worldFamily().some(worldChanged) && worldFamily().every(p => !worldOn[p.id] || worldShown(p));
+function worldError(text) { $('worldError').textContent = text ?? ''; $('worldError').hidden = !text; }
+
+/** `preselect`: players to switch on when it opens (from the results screen). */
+function openWorld(preselect = []) {
+  worldPre = preselect;
+  worldError(null);
+  worldLoad();
+  $('worldDlg').showModal();
+  worldReload();
+}
+function worldLoad() {
+  for (const p of worldFamily()) {
+    worldOn[p.id] = p.globalBoard === true || worldPre.includes(p.id);
+    const mine = p.lastInitial ?? '';
+    worldIni[p.id] = !mine && worldPre.includes(p.id) ? familyInitial() : mine;
+  }
+  drawWorld();
+}
+/** The server is the truth about who's on: re-read this family's own rows, then redraw. */
+async function worldReload() {
+  drawWorld();
+  if (!user || !familyMode) return;
+  try {
+    const rows = await Cloud.ownGlobalRows(user);
+    let fixed = 0;
+    for (const p of settings.players) {
+      const row = rows.find(r => r.id === Cloud.globalRowId(user, p.id));
+      if (!row || p.globalBoard === false) continue; // false: a take-down still on its way
+      const ini = String(row.name ?? '').trim().split(/\s+/).at(-1)?.[0] ?? '';
+      if (p.globalBoard !== true || (p.lastInitial ?? '') !== ini) { p.globalBoard = true; p.lastInitial = ini || undefined; fixed++; }
+    }
+    if (fixed) { saveSettings(); syncGlobal().catch(() => {}); }
+  } catch (e) { console.warn('world rows', e?.code ?? e); }
+  if ($('worldDlg').open) worldLoad();
+}
+function drawWorld() {
+  const on = familyMode;
+  $('worldSignIn').hidden = on;
+  const btns = $('worldSignInBtns'); btns.innerHTML = '';
+  if (!on) btns.append(signInButton(true));
+  $('worldPick').classList.toggle('off', !on);
+  $('worldPickTitle').textContent = on ? 'Who goes on the board?' : 'Then pick who goes on the board';
+  const box = $('worldPlayers'); box.innerHTML = '';
+  if (!worldFamily().length) box.innerHTML = '<p class="muted small">Add a player first.</p>';
+  for (const p of worldFamily()) {
+    const d = document.createElement('div'); d.className = 'worldRow';
+    d.innerHTML = `<div class="av">${esc(p.avatar)}</div><div class="info"><b>${esc(p.name)}</b><span></span></div>`
+      + `<input class="initial" maxlength="1" placeholder="?" autocomplete="off" autocapitalize="characters" aria-label="First letter of ${esc(p.name)}’s last name">`
+      + `<label class="switch"><input type="checkbox" role="switch" aria-label="Show ${esc(p.name)} on the world leaderboard"><span></span></label>`;
+    const ini = d.querySelector('input.initial'), sw = d.querySelector('.switch input');
+    ini.value = worldIni[p.id] ?? ''; sw.checked = !!worldOn[p.id];
+    ini.disabled = sw.disabled = !on;
+    const line = () => {
+      const isOn = !!worldOn[p.id], n = worldShown(p), blank = !(worldIni[p.id] ?? '').trim();
+      const s = d.querySelector('.info span');
+      s.textContent = !isOn ? 'Not on the board' : n ? `Shows as “${n}”` : blank ? 'Add the first letter of their last name' : 'That name can’t be used. Edit the player’s name.';
+      s.className = isOn && !n && !blank ? 'bad' : '';
+      ini.hidden = !isOn;
+      $('worldSave').disabled = !worldCanSave();
+    };
+    ini.oninput = () => { worldIni[p.id] = ini.value = ini.value.replace(/[^A-Za-zÀ-ž]/g, '').slice(-1).toUpperCase(); line(); };
+    sw.onchange = () => {
+      worldOn[p.id] = sw.checked;
+      if (sw.checked && !(worldIni[p.id] ?? '')) ini.value = worldIni[p.id] = familyInitial();
+      worldError(null); line();
+    };
+    line();
+    box.append(d);
+  }
+  $('worldSave').disabled = !worldCanSave();
+}
+$('worldCancel').onclick = () => { try { $('worldDlg').close(); } catch {} };
+$('worldSave').onclick = async () => {
+  if (!worldCanSave()) return;
+  // No Face ID on the web: a grown-up confirms before anyone goes on. Turning players off never asks.
+  const turningOn = worldFamily().some(p => worldOn[p.id] && p.globalBoard !== true);
+  if (turningOn && !confirm('A grown-up confirms before a player goes on the world leaderboard.')) {
+    worldError('Nothing was saved. A grown-up needs to confirm before a player goes on the world leaderboard.');
+    return;
+  }
+  for (const p of worldFamily()) {
+    if (!worldChanged(p)) continue;
+    p.lastInitial = (worldIni[p.id] ?? '').trim().slice(0, 1).toUpperCase() || undefined;
+    if (worldOn[p.id]) p.globalBoard = true; else if (p.globalBoard === true) p.globalBoard = false; // false: take the row down
+  }
+  saveSettings();
+  try { $('worldDlg').close(); } catch {}
+  $('worldNudge').hidden = true;
+  if (boardScope !== 'global') { boardScope = 'global'; globalRows = null; }
+  renderHome();
+  await pushFamily().catch(() => notice('Couldn’t reach your family’s Google account just now; it’ll try again after your next round.'));
+  renderBoard();
+};
 
 // MARK: Settings
 
@@ -917,6 +1064,7 @@ async function finish(g, early) {
     return `<div><b>${p.c.avatar} ${esc(p.c.name)}</b><div class="chips" style="margin-top:6px">${misses.length ? misses.map(q => `<span class="chip">${q.full}</span>`).join('') : '<span class="muted">Perfect round! 🌟</span>'}</div></div>`;
   }).join('');
   $('againHint').hidden = !g.usingVoice;
+  worldNudge(g, early);
   show('results');
   try { navigator.wakeLock && (await navigator.wakeLock.request('screen')).release(); } catch {}
   if (early) return;
@@ -939,6 +1087,21 @@ async function finish(g, early) {
     if (r.type === 'phrase') { if (['no', 'done', 'quit'].includes(r.value)) { Voice.say('Good job, everyone!'); return; } start(); return; }
   }
 }
+
+/** On the results screen, once per player: "Show Lane on the world leaderboard?" */
+let nudged = [];
+function worldNudge(g, early) {
+  const no = new Set(load('worldNoThanks', []));
+  nudged = early || !Cloud.available ? [] : [...g.players].sort((a, b) => b.points - a.points).filter(p => p.points > 0)
+    .map(p => settings.players.find(x => x.id === p.c.id))
+    .filter(p => p && !p.account && p.name?.trim() && p.globalBoard !== true && !no.has(p.id));
+  $('worldNudge').hidden = !nudged.length;
+  if (!nudged.length) return;
+  const names = nudged.map(p => p.name), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0];
+  $('worldNudgeTitle').textContent = `🌎 Show ${list} on the world leaderboard?`;
+}
+$('worldNudgeYes').onclick = () => openWorld(nudged.map(p => p.id));
+$('worldNudgeNo').onclick = () => { save('worldNoThanks', [...new Set([...load('worldNoThanks', []), ...nudged.map(p => p.id)])]); $('worldNudge').hidden = true; };
 
 function confetti() {
   const c = $('confetti'), ctx = c.getContext('2d');
@@ -1015,6 +1178,6 @@ boardOp = settings.mode;
 renderHome();
 Cloud.watchUser(signedIn).catch(() => {});
 // Tests only (with Firebase's local emulator): sign in as a made-up account, and peek at state.
-if (/[?&]firebaseEmulator=/.test(location.search)) window.__ttrt = { signIn: (email, name) => Cloud.testSignIn(email, name),
+if (/[?&]firebaseEmulator=/.test(location.search)) window.__ttrt = { signIn: (email, name, parent) => { parentSignIn = !!parent; return Cloud.testSignIn(email, name); },
   state: () => ({ user: user?.uid ?? null, familyMode, globalOff, players: settings.players }), sync: () => pushFamily() };
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

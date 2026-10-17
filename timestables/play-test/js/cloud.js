@@ -144,8 +144,15 @@ export async function deleteGlobalRow(user, playerId) {
   await S.deleteDoc(S.doc(db, 'global', globalRowId(user, playerId)));
 }
 
+/** This family's own rows (the server's word on who is on the world leaderboard). */
+export async function ownGlobalRows(user) {
+  const { db, S } = await load();
+  const snap = await S.getDocs(S.query(S.collection(db, 'global'), S.where('owner', '==', user.uid)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 /**
- * Rows for one board: this week's (by week id), or all time for one mode (highest first). For
+ * Rows for one board:this week's (by week id), or all time for one mode (highest first). For
  * "All modes", the most recently updated rows; the page adds their modes up.
  */
 export async function loadGlobal(op, weekId) {
