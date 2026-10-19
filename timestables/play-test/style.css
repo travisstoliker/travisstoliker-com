@@ -258,3 +258,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
   #worldDlg .dlgbar h2 { font-size: 15px; }
 }
 .primary:disabled { opacity: .4; cursor: default; }
+
+/* Report or block a world leaderboard row */
+#reportDlg .dlg { display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
+#reportDlg .ghost { width: 100%; }
+.linkish { background: none; border: 0; padding: 10px 0; width: 100%; text-align: center; cursor: pointer; text-decoration: underline; }

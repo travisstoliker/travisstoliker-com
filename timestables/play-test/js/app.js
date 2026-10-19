@@ -337,13 +337,15 @@ function familyRows(ops) {
 }
 
 const reported = () => new Set(load('reportedRows', []));
+// Families blocked in this browser: every one of their rows stays hidden here (App Store 1.2, Google Play UGC policy).
+const blockedOwners = () => new Set(load('blockedOwners', []));
 // This browser's players who are switched on show even before they score.
 const onHere = () => new Set(user && familyMode ? family().filter(p => p.globalBoard === true).map(p => Cloud.globalRowId(user, p.id)) : []);
 function globalBoardRows(ops) {
-  const wk = weekId(Date.now()), hide = reported(), on = onHere();
+  const wk = weekId(Date.now()), hide = reported(), blocked = blockedOwners(), on = onHere();
   return (globalRows ?? [])
-    .filter(r => !hide.has(r.id))
-    .map(r => ({ id: r.id, name: r.name, avatar: r.avatar, me: r.owner === user?.uid,
+    .filter(r => !hide.has(r.id) && !blocked.has(r.owner))
+    .map(r => ({ id: r.id, owner: r.owner, name: r.name, avatar: r.avatar, me: r.owner === user?.uid,
       points: ops.reduce((t, o) => t + (boardWeek ? (r.week?.id === wk ? r.week?.[o] ?? 0 : 0) : r.points?.[o] ?? 0), 0) }))
     .filter(r => r.points > 0 || on.has(r.id))
     .sort((a, b) => b.points - a.points)
@@ -368,8 +370,23 @@ async function fetchGlobal() {
   catch (e) { globalRows = []; if (e?.code === 'permission-denied') globalOff = true; console.warn('global leaderboard', e?.code ?? e); }
 }
 
+// The flag on another family's row: report the name, or block the whole family in this browser.
+let reporting = null;
+function reportOrBlock(r) {
+  if (!user) return;
+  reporting = r;
+  $('reportTitle').textContent = `Report or block “${r.name}”?`;
+  $('reportDlg').showModal();
+}
+$('reportCancel').onclick = () => $('reportDlg').close();
+$('reportName').onclick = () => { $('reportDlg').close(); report(reporting); };
+$('blockFamily').onclick = () => {
+  $('reportDlg').close();
+  save('blockedOwners', [...blockedOwners(), reporting.owner]);
+  renderBoard();
+};
+
 async function report(r) {
-  if (!user || !confirm(`Report “${r.name}”? If the name isn’t OK for kids, we’ll take it down. It disappears from your board now.`)) return;
   save('reportedRows', [...reported(), r.id]);
   try { await Cloud.reportRow(user, r); notice('Thanks for telling us. We’ll check it.'); }
   catch { notice('Couldn’t send the report just now. It’s hidden on this computer; you can also email privacy@agrowthfactory.com.'); }
@@ -441,12 +458,18 @@ async function renderBoard() {
     d.innerHTML = `<div class="medal">${r.points ? (['🥇', '🥈', '🥉'][i] ?? i + 1) : '–'}</div><div class="av">${esc(r.avatar)}</div><div class="info"><b>${esc(r.name)}</b><span>${boardScope === 'global' && r.me ? (r.points ? 'Your family' : 'Your family · play a round to score') : detail}</span></div><div class="score"><b>${r.points.toLocaleString()}</b><span>points</span></div>`;
     if (boardScope === 'global' && !r.me) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'report'; b.textContent = '⚑';
-      b.title = b.ariaLabel = `Report ${r.name}`;
-      b.onclick = () => report(r);
+      b.title = b.ariaLabel = `Report or block ${r.name}`;
+      b.onclick = () => reportOrBlock(r);
       d.append(b);
     }
     el.append(d);
   });
+  if (boardScope === 'global' && blockedOwners().size) {
+    const u = document.createElement('button'); u.type = 'button'; u.className = 'linkish muted small'; u.id = 'worldUnblock';
+    u.textContent = `Show blocked families again (${blockedOwners().size})`;
+    u.onclick = () => { save('blockedOwners', []); renderBoard(); };
+    el.append(u);
+  }
 }
 
 // MARK: Players

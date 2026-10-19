@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
 <main id="app">
@@ -142,6 +142,16 @@
 </dialog>
 
 <!-- Settings -->
+<dialog id="reportDlg">
+  <form method="dialog" class="dlg">
+    <h2 id="reportTitle">Report or block?</h2>
+    <p class="muted small">Report: if the name isn’t OK for kids, we take it down, and it disappears from your board now. Block: every player from that family stays hidden on this computer.</p>
+    <button type="button" class="ghost danger" id="reportName">Report this name</button>
+    <button type="button" class="ghost danger" id="blockFamily">Block this family</button>
+    <button type="button" class="ghost" id="reportCancel">Cancel</button>
+  </form>
+</dialog>
+
 <dialog id="settingsDlg">
   <form method="dialog" class="dlg">
     <h2>Settings</h2>
@@ -172,6 +182,6 @@
 </dialog>
 
 <button id="soundBtn" class="soundBtn" hidden>🔈 Tap here to turn on the sound</button>
-<script type="module" src="js/app.js?v=23"></script>
+<script type="module" src="js/app.js?v=24"></script>
 </body>
 </html>
