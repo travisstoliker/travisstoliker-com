@@ -175,3 +175,11 @@ footer a { color: var(--muted); }
 .news-text { flex: 1 1 260px; color: var(--muted); }
 .news-text b { color: var(--ink); }
 .news-go { color: var(--gold); font-weight: 800; white-space: nowrap; }
+
+/* family quotes */
+.quotes { columns: 3 300px; column-gap: 18px; }
+.quote { display: block; break-inside: avoid; margin: 0 0 18px; background: var(--panel); border-radius: var(--radius); padding: 22px 24px; color: var(--ink); text-decoration: none; transition: transform .1s ease, background .15s ease; }
+.quote:hover { background: var(--panel2); transform: translateY(-2px); }
+.quote blockquote { margin: 0 0 14px; font-size: 1.08rem; font-weight: 700; line-height: 1.5; }
+.quote cite { display: block; font-style: normal; font-weight: 900; color: var(--gold); }
+.quote cite span { display: block; font-weight: 700; color: var(--muted); font-size: .92rem; }
