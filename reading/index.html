@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Direct Instruction Reading: free phonics lessons for parents</title>
+<meta name="description" content="Free, scripted phonics lessons a parent and child do together, built on the Direct Instruction approach: one sound at a time, say it slow then say it fast, sound out words, read short stories, with instant correction.">
+<meta name="theme-color" content="#fff8ee">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+<main>
+
+<!-- HOME -->
+<section id="home" class="screen">
+  <div class="top">
+    <span></span>
+    <button class="circle" id="btnSettings" aria-label="Settings">⚙️</button>
+  </div>
+  <header class="hero">
+    <h1>Direct Instruction Reading</h1>
+    <p class="tagline">Say it slow. Say it fast.</p>
+    <p class="lede">Short daily phonics lessons a grown-up and a child do together. At home, you read the script. In the car, the app talks and listens, and the driver just says “yes” or “again”.</p>
+  </header>
+
+  <div id="settings" class="card" hidden>
+    <label class="switch"><input type="checkbox" id="micToggle"> <span>Use the microphone to check words</span></label>
+    <p class="small muted" id="micNote"></p>
+    <p class="small muted">Progress is saved on this device only. Nothing is sent anywhere.</p>
+    <button class="ghost small" id="btnReset">Remove this reader</button>
+  </div>
+
+  <h2>Who's reading?</h2>
+  <div class="kids" id="kids"></div>
+  <form id="addForm" class="card addform" hidden>
+    <label for="kidName">First name of the child learning to read</label>
+    <div class="row"><input id="kidName" maxlength="20" autocomplete="off" enterkeyhint="done"><button class="yesbtn">Add</button><button type="button" class="ghost" id="addCancel">Cancel</button></div>
+  </form>
+  <button class="start" id="btnStart" hidden></button>
+  <button class="start car" id="btnCar" hidden></button>
+
+  <div id="gridWrap" hidden>
+    <h2>All lessons</h2>
+    <p class="small muted">The letter is the new sound in that lesson. Tap any lesson to do it.</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <details class="card guide" open>
+    <summary>How to teach it (2 minutes)</summary>
+    <ol>
+      <li><b>Every day, about 5 minutes.</b> Short and often beats long. If they want more, do the next lesson. Stop while it's still fun.</li>
+      <li><b>Read only the “You say” lines.</b> The script is short on purpose. The child's job is the big letters.</li>
+      <li><b>Hold the long sounds, clip the short ones.</b> “mmm” and “sss” last about two seconds. “t” and “d” are quick, with no “tuh” or “duh”.</li>
+      <li><b>Fix mistakes right away, kindly.</b> Tap ✗ and the app shows you exactly what to say: my turn, together, your turn. Missed items come back at the end of the part.</li>
+      <li><b>Praise the work.</b> “You read that word!” beats “good job”.</li>
+      <li><b>In the car:</b> your child holds the phone or tablet in the back seat. The app tells you when to say a sound or a slow word. Say “yes” when it's right, “again” when it isn't, or “repeat”, “skip” or “stop”. If reading in the car makes your child queasy, stick to the “Say it fast” listening games.</li>
+      <li><b>Firm before moving on.</b> If fewer than 7 in 10 were right the first time, the app asks you to repeat the lesson. That's normal.</li>
+    </ol>
+  </details>
+
+  <details class="card about">
+    <summary>What is Direct Instruction?</summary>
+    <p>Direct Instruction is a way of teaching developed by Siegfried “Zig” Engelmann and colleagues starting in the 1960s. Lessons are carefully sequenced and scripted, new things come one at a time with lots of review, and mistakes are corrected on the spot. In the 1970s it had the strongest results of any approach tested in Project Follow Through, one of the largest education studies ever run.</p>
+    <p>The story is told in <a href="https://features.apmreports.org/sold-a-story/season-2/" target="_blank" rel="noopener">season 2 of the <i>Sold a Story</i> podcast</a> from APM Reports. Episode 5, “Why It Works”, explains the theory behind it.</p>
+    <p>This app's lessons, words and stories are original, written for this app using those principles. It is not affiliated with or endorsed by APM Reports, the Engelmann family, or the publishers of any Direct Instruction program.</p>
+  </details>
+
+  <p class="foot small muted">Free. No ads. No accounts. Made by Travis Stoliker.</p>
+</section>
+
+<!-- LESSON -->
+<section id="lesson" class="screen" hidden>
+  <div class="top">
+    <button class="circle" id="btnQuit" aria-label="Stop lesson">✕</button>
+    <div class="lt-head"><b id="lessonTitle"></b><span id="partName" class="small muted"></span></div>
+    <span class="circle-space"></span>
+  </div>
+  <div class="progress"><div id="bar"></div></div>
+  <div id="kidCard" class="kidcard"></div>
+  <div class="grownup">
+    <div class="gu-label">For the grown-up</div>
+    <div id="script"></div>
+    <div id="heard" class="heard"></div>
+    <div id="btns" class="btns"></div>
+  </div>
+</section>
+
+<!-- DONE -->
+<section id="done" class="screen" hidden>
+  <div class="donebox">
+    <div class="star">⭐</div>
+    <h1 id="doneTitle"></h1>
+    <p id="doneText"></p>
+    <button class="start" id="btnNext">▶ Next lesson</button>
+    <button class="ghost" id="btnAgain">Do this lesson again</button>
+    <button class="ghost" id="btnHome">Home</button>
+  </div>
+</section>
+
+</main>
+<script type="module" src="js/app.js?v=3"></script>
+</body>
+</html>
