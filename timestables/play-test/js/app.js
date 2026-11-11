@@ -3,7 +3,7 @@ import { OPS, OP, MIX, MODES, storeKey, findItem, groups, question, KIND_NAME, I
 import * as Coach from './coach.js?v=2';
 import { tipFor } from './tips.js';
 import * as Voice from './voice.js?v=14';
-import * as Cloud from './cloud.js?v=5';
+import * as Cloud from './cloud.js?v=6';
 import { globalName } from './global-name.js?v=1';
 
 const $ = id => document.getElementById(id);
@@ -74,6 +74,7 @@ function mergeFacts(a = {}, b = {}) {
 // Family mode: the signed-in account is a family's account (a parent's, made in the app), so this
 // browser shows and saves the whole family: every player and their scores, same as the phones.
 let familyMode = false;
+let familyOwner = null; // the family's account email, on a browser that joined with a code
 
 function mergeSkills(a = {}, b = {}) {
   const out = { ...a };
@@ -81,8 +82,39 @@ function mergeSkills(a = {}, b = {}) {
   return out;
 }
 
+/** "Ma  B", "Ma. B" and "ma b" are the same name. */
+const sameName = n => String(n ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+/** Moves everything saved for one player id to another (this browser; syncing spreads it). */
+function combinePlayer(old, nid) {
+  for (const op of OPS) {
+    if (memories[op][old]) { memories[op][nid] = mergeFacts(memories[op][nid], memories[op][old]); delete memories[op][old]; }
+    if (skillSets[op][old]) { if (!skillSets[op][nid] || (skillSets[op][old].answers ?? 0) > (skillSets[op][nid].answers ?? 0)) skillSets[op][nid] = skillSets[op][old]; delete skillSets[op][old]; }
+    resultSets[op] = resultSets[op].map(r => r.player === old ? { ...r, player: nid } : r);
+    saveProgress(op);
+  }
+  resultSets[MIX] = resultSets[MIX].map(r => r.player === old ? { ...r, player: nid } : r);
+  saveProgress(MIX);
+  const names = load('knownNames', {});
+  if (!names[nid] && names[old]) { names[nid] = names[old]; save('knownNames', names); }
+}
+
 async function joinFamily(u, fam) {
-  const deleted = new Set([...(load('deletedPlayers', [])), ...fam.deleted]);
+  const fid = Cloud.familyId(u);
+  const deleted0 = new Set([...(load('deletedPlayers', [])), ...fam.deleted]);
+  // First time this browser joins this family: a player here with the same name as one of the
+  // family's (made separately, so a different id) is the same person, so they become one player.
+  if (load('lastFamily', null) !== fid) {
+    const taken = new Set();
+    for (const p of settings.players.filter(p => !p.account && !fam.roster.some(x => x.id === p.id))) {
+      const twin = fam.roster.find(x => sameName(x.name) === sameName(p.name) && !taken.has(x.id) && !deleted0.has(x.id));
+      if (!twin) continue;
+      combinePlayer(p.id, twin.id);
+      deleted0.add(p.id); taken.add(twin.id);
+      settings.players = settings.players.filter(x => x.id !== p.id);
+    }
+    save('lastFamily', fid);
+  }
+  const deleted = deleted0;
   // This browser's own "signed-in account" player isn't a family member: the family has its players.
   const local = settings.players.filter(p => !(p.account && p.id === u.uid) && !deleted.has(p.id));
   const roster = [...local];
@@ -166,6 +198,21 @@ async function signedInNow(u) {
   familyMode = false;
   const asParent = parentSignIn; parentSignIn = false;
   if (!u) { renderHome(); return; }
+  if (u.isAnonymous) { // this browser joined a family with a code
+    const fid = Cloud.joinedFamily();
+    if (!fid) { renderHome(); return; } // still joining: joinWithCode finishes, then calls this again
+    try {
+      const fam = await Cloud.loadFamily(fid);
+      if (fam) { familyOwner = fam.ownerEmail; await joinFamily(u, fam); }
+      else notice('Your family’s saved scores aren’t there anymore. Tap “Stop saving on this browser”, then join again with a new code.');
+    } catch (e) {
+      console.warn('family load failed', e);
+      notice(e?.code === 'permission-denied'
+        ? 'This browser isn’t part of the family anymore. Tap “Stop saving on this browser”, then join again with a new code.'
+        : 'Couldn’t reach your family’s saved scores just now. Playing on this computer; it’ll save when you’re back online.');
+    }
+    renderHome(); return;
+  }
   try {
     const fam = await Cloud.loadFamily(u.uid);
     if (fam) { await joinFamily(u, fam); renderHome(); return; }
@@ -250,14 +297,19 @@ function renderAccount() {
   const el = $('account');
   el.innerHTML = '';
   if (!Cloud.available) return;
-  if (user) {
+  const link = (text, onclick) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'link'; b.textContent = text; b.onclick = onclick; return b; };
+  if (user?.isAnonymous) {
+    const who = document.createElement('span'); who.className = 'who';
+    who.textContent = familyMode ? '👪 Family saved' : '👪 Joining…';
+    who.title = familyOwner ? `Saved to ${familyOwner}` : '';
+    el.append(who); // Stop saving is in Settings > Family devices
+  } else if (user) {
     const who = document.createElement('span'); who.className = 'who';
     who.textContent = familyMode ? `👪 Family saved to ${user.email}` : `Saving to ${user.email}`;
-    const out = document.createElement('button'); out.className = 'link'; out.textContent = 'Sign out';
-    out.onclick = async () => { await Cloud.signOut(); settings.players = settings.players.filter(p => !p.account); saveSettings(); };
+    const out = link('Sign out', async () => { await Cloud.signOut(); settings.players = settings.players.filter(p => !p.account); saveSettings(); });
     el.append(who, out);
   } else {
-    el.append(signInButton());
+    el.append(signInButton(), link('Join with a code', openJoin));
   }
 }
 
@@ -345,7 +397,7 @@ function globalBoardRows(ops) {
   const wk = weekId(Date.now()), hide = reported(), blocked = blockedOwners(), on = onHere();
   return (globalRows ?? [])
     .filter(r => !hide.has(r.id) && !blocked.has(r.owner))
-    .map(r => ({ id: r.id, owner: r.owner, name: r.name, avatar: r.avatar, me: r.owner === user?.uid,
+    .map(r => ({ id: r.id, owner: r.owner, name: r.name, avatar: r.avatar, me: !!user && r.owner === Cloud.familyId(user),
       points: ops.reduce((t, o) => t + (boardWeek ? (r.week?.id === wk ? r.week?.[o] ?? 0 : 0) : r.points?.[o] ?? 0), 0) }))
     .filter(r => r.points > 0 || on.has(r.id))
     .sort((a, b) => b.points - a.points)
@@ -552,6 +604,45 @@ $('dlgName').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); playerForm.requestSubmit ? playerForm.requestSubmit($('dlgSave')) : $('dlgSave').click(); }
 });
 
+// MARK: Add another device / join with a code (same as the app's Settings)
+
+function openJoin() {
+  $('joinCode').value = ''; $('joinError').hidden = true; joinReady();
+  $('joinDlg').showModal();
+  setTimeout(() => $('joinCode').focus(), 50);
+}
+const joinReady = () => { $('joinGo').disabled = !Cloud.normalizeCode($('joinCode').value) || joining; };
+let joining = false;
+$('joinCode').oninput = joinReady;
+$('joinCancel').onclick = () => $('joinDlg').close();
+$('joinDlg').querySelector('form').onsubmit = async e => {
+  e.preventDefault();
+  if (joining || !Cloud.normalizeCode($('joinCode').value)) return;
+  joining = true; $('joinGo').textContent = 'Joining…'; joinReady(); $('joinError').hidden = true;
+  try {
+    await Cloud.joinWithCode($('joinCode').value);
+    $('joinDlg').close();
+    await signedInNow(user && user.isAnonymous ? user : await Cloud.currentUser());
+  } catch (err) {
+    $('joinError').textContent = err?.message || 'That didn’t work. Try again.'; $('joinError').hidden = false;
+  } finally { joining = false; $('joinGo').textContent = 'Join'; joinReady(); }
+};
+
+async function makeCode() {
+  $('codeShow').textContent = '…'; $('codeError').hidden = true;
+  try { $('codeShow').textContent = Cloud.showCode(await Cloud.makeJoinCode(user)); }
+  catch (e) { $('codeShow').textContent = ''; $('codeError').textContent = e?.message || 'Couldn’t make a code. Check the internet connection and try again.'; $('codeError').hidden = false; }
+}
+function openAddDevice() { $('codeDlg').showModal(); makeCode(); }
+$('codeNew').onclick = makeCode;
+$('codeDone').onclick = () => $('codeDlg').close();
+
+async function stopSaving() {
+  if (!confirm('Stop saving on this browser? Everyone’s players and scores stay here, and stay saved online for your family’s other devices.')) return;
+  await Cloud.leaveFamily(user).catch(() => {});
+  familyOwner = null;
+}
+
 // MARK: World leaderboard (one box: a parent signs in if needed, picks players, one Save)
 
 /** Anyone in the family who could still be added. */
@@ -686,6 +777,15 @@ function openSettings() {
   if (gs.options.length === 1) for (const g of ['K', '1', '2', '3', '4', '5', '6', '7', '8']) gs.append(new Option(g === 'K' ? 'Kindergarten' : `Grade ${g}`, g));
   gs.value = settings.grade ?? '';
   $('gradeSection').hidden = !(user && Cloud.schoolOf(user));
+  // Family devices: add another device (family saved here), or join one (nothing saved here yet).
+  const fs = $('familySection'), canJoin = Cloud.available && !user;
+  fs.hidden = !(familyMode || canJoin || user?.isAnonymous);
+  $('familyText').textContent = familyMode ? 'Show a code so another iPhone, iPad or computer gets the same players and scores. Nobody has to sign in there.'
+    : 'Already saving your family in the app on a phone or tablet? Join it with a code from that device, and this computer gets the same players and scores.';
+  $('btnFamily').textContent = familyMode ? '📱 Add another device' : '🔑 Join with a code';
+  $('btnFamily').onclick = () => { $('settingsDlg').close(); familyMode ? openAddDevice() : openJoin(); };
+  $('btnLeave').hidden = !user?.isAnonymous;
+  $('btnLeave').onclick = async () => { $('settingsDlg').close(); await stopSaving(); };
   $('privacyText').textContent = Cloud.available
     ? 'No ads, no tracking. Without signing in, names and scores stay in this browser. Signing in with Google saves your progress to your account so it follows you, and a school account shows your first name and last initial on your school’s leaderboard, only to others at your school. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).'
     : 'No accounts, ads or tracking. Names and scores stay in this browser. Listening uses your browser’s speech recognition (in Chrome, Google turns speech into text).';
@@ -1080,7 +1180,7 @@ async function finish(g, early) {
     for (const p of g.players) if (p.asked) resultSets[op].push({ player: p.c.id, date: nowRef(), points: p.points, right: p.right, asked: p.asked, won: g.players.length > 1 && winners === 1 && p.points === top });
     resultSets[op] = resultSets[op].slice(-2000);
     saveProgress(op);
-    if (familyMode) pushFamily().catch(() => notice('Couldn’t save to your family’s Google account just now; it’ll try again after your next round.'));
+    if (familyMode) pushFamily().catch(() => notice('Couldn’t save to your family’s account just now; it’ll try again after your next round.'));
     else if (user && g.players.some(p => p.c.id === user.uid)) pushAccount().catch(() => notice('Couldn’t save to your Google account just now; it’ll try again after your next round.'));
   }
   const ranked = [...g.players].sort((a, b) => b.points - a.points);
@@ -1214,5 +1314,6 @@ renderHome();
 Cloud.watchUser(signedIn).catch(() => {});
 // Tests only (with Firebase's local emulator): sign in as a made-up account, and peek at state.
 if (/[?&]firebaseEmulator=/.test(location.search)) window.__ttrt = { signIn: (email, name, parent) => { parentSignIn = !!parent; return Cloud.testSignIn(email, name); },
-  state: () => ({ user: user?.uid ?? null, familyMode, globalOff, players: settings.players }), sync: () => pushFamily() };
+  state: () => ({ user: user?.uid ?? null, anon: !!user?.isAnonymous, familyMode, globalOff, players: settings.players, results: resultSets }), sync: () => pushFamily(),
+  makeCode: () => Cloud.makeJoinCode(user), signOut: () => Cloud.signOut() };
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

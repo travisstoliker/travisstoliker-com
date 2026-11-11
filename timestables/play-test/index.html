@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 <main id="app">
@@ -152,6 +152,36 @@
   </form>
 </dialog>
 
+<!-- Join a family with a code from the app (Settings > Add another device) -->
+<dialog id="joinDlg">
+  <form class="dlg">
+    <h2>Join with a code</h2>
+    <p class="small">On the iPhone, iPad or Android phone that already saves your family, open <b>Settings</b> and tap <b>Add another device</b>. Type the code it shows.</p>
+    <input id="joinCode" class="codeInput" maxlength="12" placeholder="K7PQ-4XMR" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+    <p class="muted small">Nobody signs in on this computer. Its players and scores are added to the family’s; nothing is erased. A player with the same name on both becomes one player.</p>
+    <p class="error small" id="joinError" hidden></p>
+    <button class="primary" id="joinGo" disabled>Join</button>
+    <button type="button" class="ghost" id="joinCancel">Cancel</button>
+  </form>
+</dialog>
+
+<!-- Show a code another device types to join this family -->
+<dialog id="codeDlg">
+  <form method="dialog" class="dlg">
+    <h2>Add another device</h2>
+    <ol class="small steps">
+      <li>On the other iPhone, iPad or computer, open Times Tables.</li>
+      <li>Tap <b>Save our family’s scores online</b> (on a computer: <b>Join with a code</b> at the top).</li>
+      <li>Type this code:</li>
+    </ol>
+    <div class="codeShow" id="codeShow">…</div>
+    <p class="error small" id="codeError" hidden></p>
+    <p class="muted small">Works for 15 minutes, on as many devices as you like. Everyone’s players and scores are added together; nothing is erased.</p>
+    <button type="button" class="ghost" id="codeNew">New code</button>
+    <button type="button" class="primary" id="codeDone">Done</button>
+  </form>
+</dialog>
+
 <dialog id="settingsDlg">
   <form method="dialog" class="dlg">
     <h2>Settings</h2>
@@ -166,6 +196,12 @@
       <h3>Microphone</h3>
       <button type="button" class="ghost" id="btnMicTest">🎤 Test the microphone</button>
       <p class="muted small" id="micReport">Say a number to check the game can hear you.</p>
+    </div>
+    <div class="section" id="familySection" hidden>
+      <h3>Family devices</h3>
+      <p class="muted small" id="familyText"></p>
+      <button type="button" class="ghost" id="btnFamily"></button>
+      <button type="button" class="ghost" id="btnLeave" hidden>Stop saving on this browser</button>
     </div>
     <div class="section" id="gradeSection" hidden>
       <h3>Grade</h3>
@@ -182,6 +218,6 @@
 </dialog>
 
 <button id="soundBtn" class="soundBtn" hidden>🔈 Tap here to turn on the sound</button>
-<script type="module" src="js/app.js?v=24"></script>
+<script type="module" src="js/app.js?v=26"></script>
 </body>
 </html>

@@ -67,7 +67,72 @@ export async function testSignIn(email, name) {
   const cred = A.GoogleAuthProvider.credential(JSON.stringify({ sub: email, email, email_verified: true, name }));
   return (await A.signInWithCredential(auth, cred)).user;
 }
+export async function currentUser() { const { auth } = await load(); return auth.currentUser; }
 export async function signOut() { const { auth, A } = await load(); await A.signOut(auth); }
+
+// MARK: Joining a family with a code (from the app's Settings > Add another device)
+// The browser gets its own sign-in-free account, and the family lets that account in
+// (families/<family>/members/<account>). Nobody signs in here.
+const JOINED = 'ttrt-joined-family';
+export const joinedFamily = () => { try { return localStorage.getItem(JOINED); } catch { return null; } };
+/** Whose family this browser saves to: the family it joined with a code, or its own account's. */
+export const familyId = user => (user?.isAnonymous ? joinedFamily() : user?.uid) ?? null;
+const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', CODE_MINUTES = 15;
+export const codeMinutes = CODE_MINUTES;
+/** "k7pq 4xmr" or "K7PQ-4XMR" → "K7PQ4XMR" (null if it can't be a code). */
+export function normalizeCode(typed) {
+  const c = String(typed ?? '').toUpperCase().replace(/0/g, 'O').replace(/1/g, 'I').replace(/[^A-Z0-9]/g, '');
+  return c.length === 8 ? c : null;
+}
+export const showCode = c => `${c.slice(0, 4)}-${c.slice(4)}`;
+class CodeError extends Error {}
+
+/** A code another device types to join this family (15 minutes). */
+export async function makeJoinCode(user) {
+  const { db, S } = await load();
+  for (let i = 0; i < 3; i++) {
+    const r = crypto.getRandomValues(new Uint32Array(8));
+    const code = Array.from(r, n => CODE_LETTERS[n % CODE_LETTERS.length]).join('');
+    try {
+      // A code that already exists would be an update, which the rules refuse: then try another.
+      await S.setDoc(S.doc(db, 'joinCodes', code), { family: familyId(user), by: user.uid,
+        expires: S.Timestamp.fromMillis(Date.now() + CODE_MINUTES * 60e3) });
+      return code;
+    } catch (e) { if (e?.code !== 'permission-denied') throw e; }
+  }
+  throw new CodeError('Couldn’t make a code. Check the internet connection and try again.');
+}
+
+/** Join the family a code belongs to. Returns the family's id. */
+export async function joinWithCode(typed) {
+  const code = normalizeCode(typed);
+  if (!code) throw new CodeError('A code has 8 letters and numbers, like K7PQ-4XMR.');
+  const { auth, A, db, S } = await load();
+  const me = (await A.signInAnonymously(auth)).user;
+  try {
+    const c = await S.getDoc(S.doc(db, 'joinCodes', code));
+    if (!c.exists() || typeof c.data().family !== 'string') throw new CodeError('That code didn’t work. Check it, or make a new one on the other device.');
+    if (c.data().expires?.toMillis?.() < Date.now()) throw new CodeError(`That code ran out (codes last ${CODE_MINUTES} minutes). Make a new one on the other device.`);
+    const fid = c.data().family;
+    await S.setDoc(S.doc(db, 'families', fid, 'members', me.uid), { code, joined: S.Timestamp.now(), device: 'Web browser' });
+    try { localStorage.setItem(JOINED, fid); } catch {}
+    return fid;
+  } catch (e) {
+    await me.delete().catch(() => A.signOut(auth)); // nothing half-joined is left behind
+    if (e instanceof CodeError) throw e;
+    if (e?.code === 'permission-denied') throw new CodeError(`That code didn’t work. Codes last ${CODE_MINUTES} minutes; make a new one on the other device.`);
+    throw new CodeError('Couldn’t connect. Check the internet connection and try again.');
+  }
+}
+
+/** This browser stops saving to the family: it's let out and its sign-in-free account deleted. */
+export async function leaveFamily(user) {
+  const { auth, A, db, S } = await load();
+  const fid = joinedFamily();
+  if (fid) await S.deleteDoc(S.doc(db, 'families', fid, 'members', user.uid)).catch(() => {});
+  try { localStorage.removeItem(JOINED); } catch {}
+  await user.delete().catch(() => A.signOut(auth));
+}
 
 /** Everything saved for this account: { profile, progress: { "memory.div": {...}, ... } }. */
 export async function loadAccount(uid) {
@@ -98,17 +163,19 @@ export async function loadFamily(uid) {
     const x = d.exists() ? d.data() : {};
     data[op] = { memory: J(x.memory, {}), skills: J(x.skills, {}), results: J(x.results, []) };
   }
-  return { roster: J(f.roster, []), knownNames: J(f.knownNames, {}), deleted: J(f.deleted, []), data };
+  return { roster: J(f.roster, []), knownNames: J(f.knownNames, {}), deleted: J(f.deleted, []), ownerEmail: f.ownerEmail ?? null, data };
 }
 
 export async function saveFamily(user, { roster, knownNames, deleted, data }) {
   const { db, S } = await load();
   const now = S.serverTimestamp();
   // merge: keep fields this page doesn't know about (like members another parent was invited as)
-  await S.setDoc(S.doc(db, 'families', user.uid), { roster: JSON.stringify(roster), knownNames: JSON.stringify(knownNames),
-    deleted: JSON.stringify(deleted), ownerEmail: user.email, updated: now }, { merge: true });
+  const fid = familyId(user);
+  // A browser that joined with a code has no email: it keeps the owner's.
+  await S.setDoc(S.doc(db, 'families', fid), { roster: JSON.stringify(roster), knownNames: JSON.stringify(knownNames),
+    deleted: JSON.stringify(deleted), ...(user.isAnonymous ? {} : { ownerEmail: user.email }), updated: now }, { merge: true });
   for (const [op, d] of Object.entries(data)) {
-    await S.setDoc(S.doc(db, 'families', user.uid, 'data', op), { memory: JSON.stringify(d.memory),
+    await S.setDoc(S.doc(db, 'families', fid, 'data', op), { memory: JSON.stringify(d.memory),
       skills: JSON.stringify(d.skills), results: JSON.stringify(d.results), updated: now });
   }
 }
@@ -132,11 +199,11 @@ export async function loadBoard(user) {
 // MARK: Global leaderboard (opt-in per player, by a parent signed in with the family account)
 
 /** "<family account id>_<player id>": the database rules let only that account write it. */
-export const globalRowId = (user, playerId) => `${user.uid}_${playerId}`;
+export const globalRowId = (user, playerId) => `${familyId(user)}_${playerId}`;
 
 export async function saveGlobalRow(user, playerId, row) {
   const { db, S } = await load();
-  await S.setDoc(S.doc(db, 'global', globalRowId(user, playerId)), { ...row, owner: user.uid, updated: S.serverTimestamp() });
+  await S.setDoc(S.doc(db, 'global', globalRowId(user, playerId)), { ...row, owner: familyId(user), updated: S.serverTimestamp() });
 }
 
 export async function deleteGlobalRow(user, playerId) {
@@ -147,7 +214,7 @@ export async function deleteGlobalRow(user, playerId) {
 /** This family's own rows (the server's word on who is on the world leaderboard). */
 export async function ownGlobalRows(user) {
   const { db, S } = await load();
-  const snap = await S.getDocs(S.query(S.collection(db, 'global'), S.where('owner', '==', user.uid)));
+  const snap = await S.getDocs(S.query(S.collection(db, 'global'), S.where('owner', '==', familyId(user))));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 

@@ -263,3 +263,11 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 #reportDlg .dlg { display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
 #reportDlg .ghost { width: 100%; }
 .linkish { background: none; border: 0; padding: 10px 0; width: 100%; text-align: center; cursor: pointer; text-decoration: underline; }
+
+/* Join with a code / Add another device */
+.codeInput { font: 800 30px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; letter-spacing: 2px; text-transform: uppercase; }
+.codeShow { font: 800 40px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--gold); text-align: center; letter-spacing: 2px;
+  background: var(--panel, rgba(255,255,255,.06)); border-radius: 16px; padding: 14px 8px; user-select: all; }
+.steps { padding-left: 22px; margin: 0; display: grid; gap: 6px; }
+.error { color: #ff7a7a; }
+.account .link + .link, .account button + .link { margin-left: 2px; }
